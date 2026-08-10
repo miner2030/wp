@@ -716,14 +716,17 @@ async function copyDownloadLink() {
   const can = state.can;
   const names = [...state.sel];
   if (!names.length || !state.share || !can || !can.download) return;
-  const one = names.length === 1 ? names[0] : null;
-  const url = one && !state.selDir.has(one)
-    ? mediaUrl(state.share.id, childPath(one), "dl=1")
-    : "/api/zip?share_id=" + state.share.id +
-      "&path=" + encodeURIComponent(state.path || "") +
-      "&names=" + names.map((nm) => encodeURIComponent(nm)).join(",");
-  const full = url.startsWith("/") ? location.origin + url : url;
-  copyText(full, "下载链接已复制");
+  const one = names.length === 1 && !state.selDir.has(names[0]) ? names[0] : null;
+  try {
+    const r = await api("POST", "/api/file/dlticket", {
+      share_id: state.share.id,
+      path: one ? childPath(one) : state.path,
+      names: one ? [] : names,
+    });
+    copyText(location.origin + r.url, "下载链接已复制,7 天内免登录可下载");
+  } catch (e) {
+    toast(e.message);
+  }
 }
 
 function openItem(name, isdir, kind) {

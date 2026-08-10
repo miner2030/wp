@@ -18,7 +18,13 @@ pub fn disposition(inline: bool, name: &str) -> String {
     if inline {
         "inline".to_string()
     } else {
-        format!("attachment; filename*=UTF-8''{}", utf8_percent_encode(name, NON_ALPHANUMERIC))
+        let safe = name.replace('"', "_").replace('\\', "_");
+        let plain = if safe.is_ascii() {
+            format!("filename=\"{safe}\"")
+        } else {
+            r#"filename="download""#.to_string()
+        };
+        format!("attachment; {plain}; filename*=UTF-8''{}", utf8_percent_encode(&safe, NON_ALPHANUMERIC))
     }
 }
 

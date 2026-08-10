@@ -28,6 +28,8 @@ pub media_dir: PathBuf,
     /// 抽帧失败记录 (share, rel) -> 最近失败时刻,5 分钟内不重复尝试。
     pub(crate) thumb_failed: Arc<Mutex<HashMap<(i64, String), i64>>>,
     captchas: Arc<Mutex<HashMap<String, (String, i64)>>>,
+    /// 下载链接 HMAC 密钥(进程级随机,重启后旧签名链接失效)。
+    pub dl_key: [u8; 32],
 }
 
 fn which_ffmpeg() -> Option<PathBuf> {
@@ -59,6 +61,8 @@ impl AppState {
         }
 
         let db = Db::open(&base.join(DB_PATH)).await?;
+        let mut dl_key = [0u8; 32];
+        rand::thread_rng().fill(&mut dl_key);
         let st = AppState {
             db,
             uploads_dir,
@@ -71,6 +75,7 @@ impl AppState {
             thumb_failed: Arc::new(Mutex::new(HashMap::new())),
             tls_listen: cfg.tls_listen.clone(),
             tls: Arc::new(crate::tls::TlsRuntime::default()),
+            dl_key,
         };
         match &st.ffmpeg {
             Some(p) => tracing::info!("检测到 ffmpeg: {}", p.display()),

@@ -456,8 +456,8 @@ async function closeModals(p) {
     const tbBox = await page.locator("#toolbar").boundingBox();
     assert(sbBox && tbBox && sbBox.y < tbBox.y + tbBox.height + 2, "selbar pinned below toolbar (top), y=" + (sbBox && sbBox.y));
     assert.strictEqual(await page.locator("#sb-link").count(), 1, "copy link action present for single selection");
-    await page.locator("#sb-link").click();
-    await page.waitForFunction(() => [...document.querySelectorAll(".toast")].some((t) => t.textContent.includes("已复制")), { timeout: 5000 });
+await page.locator("#sb-link").click();
+    await page.waitForFunction(() => [...document.querySelectorAll(".toast")].some((t) => t.textContent.includes("已复制")), undefined, { timeout: 5000 });
     // second checkbox = multi-select
     await page.locator(".tile", { hasText: "clip.mp4" }).locator(".sel-cb").click();
     await page.waitForSelector(".selbar:not(.hidden)", { timeout: 5000 });

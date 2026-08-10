@@ -1,14 +1,14 @@
 use std::path::PathBuf;
 
 use axum::extract::{Path as AxPath, Query, State};
-use axum::http::StatusCode;
+use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde_json::json;
 
 use crate::auth::Session;
 use crate::authz::{can_mutate, can_read, check_download, check_mutate, check_read};
-use crate::error::{ok_json, ApiError, ApiResult};
+use crate::error::{err_json, ok_json, ApiError, ApiResult};
 use crate::fsops::{collect_dir, locate, remove_dir_all_count, resolve};
 use crate::mime;
 use crate::state::AppState;
@@ -61,6 +61,31 @@ pub struct ZipGetQ {
     pub path: String,
     #[serde(default)]
     pub names: String,
+    #[serde(default)]
+    pub exp: i64,
+    #[serde(default)]
+    pub sig: String,
+}
+
+/// 复制下载链接签发请求:names 为空 = 单文件,否则为批量 zip。
+#[derive(serde::Deserialize)]
+pub struct TicketReq {
+    pub share_id: i64,
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub names: Vec<String>,
+}
+
+/// 匿名下载 URL 查询参数。
+#[derive(serde::Deserialize)]
+pub struct DlQ {
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub exp: i64,
+    #[serde(default)]
+    pub sig: String,
 }
 
 #[derive(serde::Serialize)]
@@ -198,7 +223,7 @@ pub async fn api_delete(State(st): State<AppState>, session: Session, Json(req):
 
 pub async fn api_zip(State(st): State<AppState>, session: Session, Json(req): Json<ZipReq>) -> Response {
     let names = req.names.clone();
-    zip_response(&st, &session, req.share_id, &req.path, &names).await.into_response()
+    zip_response(&st, &session, false, req.share_id, &req.path, &names).await.into_response()
 }
 
 pub async fn api_zip_get(State(st): State<AppState>, session: Session, Query(q): Query<ZipGetQ>) -> Response {
@@ -208,10 +233,59 @@ pub async fn api_zip_get(State(st): State<AppState>, session: Session, Query(q):
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .collect();
-    zip_response(&st, &session, q.share_id, &q.path, &names).await.into_response()
+    let authorized = if !q.sig.is_empty() {
+        let rel = format!("{}|{}", q.path, names.join(","));
+        match crate::ticket::verify(&st, "zip", q.share_id, &rel, q.exp, &q.sig) {
+            Ok(()) => true,
+            Err(e) => return e.into_response(),
+        }
+    } else {
+        false
+    };
+    zip_response(&st, &session, authorized, q.share_id, &q.path, &names).await.into_response()
 }
 
-async fn zip_response(st: &AppState, session: &Session, share_id: i64, path: &str, names: &Vec<String>) -> ApiResult<Response> {
+/// 签发复制下载链接(需登录且有下载权限):单文件 URL 以文件名结尾,批量多选为签名 zip URL。
+pub async fn api_dlticket(State(st): State<AppState>, session: Session, Json(req): Json<TicketReq>) -> ApiResult<Response> {
+    crate::authz::require_login(&session)?;
+    let url = if req.names.is_empty() {
+        let (r, rules, _) = resolve(&st, req.share_id, &req.path).await?;
+        check_download(&session, &r.share, &rules, &r.rel)?;
+        if !r.full.is_file() {
+            return Err(ApiError::not_found("文件不存在"));
+        }
+        crate::ticket::file_url(&st, r.share.id, &r.rel)
+    } else {
+        let located = locate(&st, req.share_id, &req.path).await?;
+        let rules = st.db.rules(located.share.id).await?;
+        for name in &req.names {
+            let Ok(name) = crate::path::sanitize_name(name) else { continue };
+            let rel = if located.rel.is_empty() { name.clone() } else { format!("{}/{}", located.rel, name) };
+            check_download(&session, &located.share, &rules, &rel)?;
+        }
+        crate::ticket::zip_url(&st, located.share.id, &located.rel, &req.names)
+    };
+    Ok(ok_json(json!({ "url": url, "expires_in": crate::ticket::TICKET_TTL })))
+}
+
+/// 签名下载(匿名可用):URL 末段为真实文件名,curl/wget 直接保存为正确文件名。
+pub async fn api_dl_get(State(st): State<AppState>, headers: HeaderMap, AxPath((share_id, _name)): AxPath<(i64, String)>, Query(q): Query<DlQ>) -> Response {
+    if let Err(e) = crate::ticket::verify(&st, "file", share_id, &q.path, q.exp, &q.sig) {
+        return e.into_response();
+    }
+    let (r, _, _) = match resolve(&st, share_id, &q.path).await {
+        Ok(v) => v,
+        Err(e) => return e.into_response(),
+    };
+    if !r.full.is_file() {
+        return err_json(StatusCode::NOT_FOUND, "文件不存在或已失效");
+    }
+    let mime = mime::mime_of(&crate::path::ext_of(&r.rel));
+    let range = headers.get(header::RANGE).and_then(|v| v.to_str().ok()).map(|s| s.to_string());
+    crate::stream::stream(&r.full, range.as_deref(), &mime, false, true).await
+}
+
+async fn zip_response(st: &AppState, session: &Session, authorized: bool, share_id: i64, path: &str, names: &Vec<String>) -> ApiResult<Response> {
     let located = locate(st, share_id, path).await?;
     let rules = st.db.rules(share_id).await?;
     let mut files: Vec<(String, PathBuf)> = Vec::new();
@@ -225,8 +299,10 @@ async fn zip_response(st: &AppState, session: &Session, share_id: i64, path: &st
             files.push((rel, full));
         }
     }
-    for (rel, _) in &files {
-        check_download(session, &located.share, &rules, rel)?;
+    if !authorized {
+        for (rel, _) in &files {
+            check_download(session, &located.share, &rules, rel)?;
+        }
     }
     if files.is_empty() {
         return Err(ApiError::not_found("没有可打包的文件"));

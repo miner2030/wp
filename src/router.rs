@@ -24,11 +24,13 @@ pub fn build(state: AppState) -> Router {
         .route("/api/shares/:id/rules", get(r::admin::api_rules_list).post(r::admin::api_rule_add))
         .route("/api/shares/:id/rules/:rid", axum::routing::delete(r::admin::api_rule_delete))
         .route("/api/browse-host", get(r::admin::api_host_browse))
+        .route("/api/dl/:share_id/:name", get(r::files::api_dl_get))
         // ---- 文件操作 ----
         .route("/api/browse/:share_id", get(r::files::api_browse))
         .route("/api/file/meta/:share_id", get(r::files::api_file_meta))
         .route("/api/file/text/:share_id", get(r::doc::api_file_text_get).post(r::doc::api_file_text_put))
         .route("/api/file/binary/:share_id", post(r::doc::api_file_binary_put))
+        .route("/api/file/dlticket", post(r::files::api_dlticket))
         .route("/api/mkdir", post(r::files::api_mkdir))
         .route("/api/rename", post(r::files::api_rename))
         .route("/api/delete", post(r::files::api_delete))

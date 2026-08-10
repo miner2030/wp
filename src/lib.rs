@@ -12,6 +12,7 @@ pub mod routes;
 pub mod state;
 pub mod stream;
 pub mod testing;
+pub mod ticket;
 pub mod tls;
 pub mod zip;
 
