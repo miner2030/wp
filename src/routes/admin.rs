@@ -183,7 +183,10 @@ pub async fn api_shares_list(State(st): State<AppState>, session: Session) -> Ap
 pub async fn api_shares_create(State(st): State<AppState>, session: Session, Json(req): Json<NewShareReq>) -> ApiResult<Response> {
     require_admin(&session)?;
     let canonical = path_ok(&PathBuf::from(&req.host_path))?;
-    let id = st.db.create_share(&req.name, &canonical.to_string_lossy(), None, "custom").await?;
+    let id = st
+        .db
+        .create_share(&req.name, &crate::path::display_path(&canonical), None, "custom")
+        .await?;
     let _ = st.db.insert_rule(id, "", Access::Login).await;
     Ok(ok_json(json!({ "id": id, "ok": true })))
 }
@@ -193,7 +196,7 @@ pub async fn api_share_patch(State(st): State<AppState>, session: Session, AxPat
     let share = st.db.share(id).await?.ok_or_else(|| ApiError::not_found("共享不存在"))?;
     let name = req.name.unwrap_or(share.name);
     let host_path = match req.host_path {
-        Some(h) => path_ok(&PathBuf::from(&h))?.to_string_lossy().to_string(),
+        Some(h) => crate::path::display_path(&path_ok(&PathBuf::from(&h))?),
         None => share.host_path,
     };
     st.db.update_share(id, &name, &host_path).await?;
@@ -238,7 +241,16 @@ pub async fn api_rule_delete(State(st): State<AppState>, session: Session, AxPat
 pub async fn api_host_browse(State(_st): State<AppState>, session: Session, Query(q): Query<HostBrowseQ>) -> ApiResult<Response> {
     require_admin(&session)?;
     let raw = q.path.trim();
-    let full = PathBuf::from(if raw.is_empty() { "/" } else { raw });
+    let is_root = raw.is_empty() || raw == "/" || raw == "\\";
+    if is_root && cfg!(windows) {
+        return Ok(ok_json(json!({
+            "path": "/",
+            "parent": null,
+            "dirs": crate::path::list_drives(),
+            "files": [],
+        })));
+    }
+    let full = PathBuf::from(if is_root { "/" } else { raw });
     let canon = full
         .canonicalize()
         .map_err(|e| ApiError::bad_request(format!("路径不存在: {e}")))?;
@@ -268,6 +280,15 @@ pub async fn api_host_browse(State(_st): State<AppState>, session: Session, Quer
     }
     dirs.sort_by_key(|d| d.to_lowercase());
     files.sort_by_key(|f| f.to_lowercase());
-    let parent = canon.parent().map(|p| p.to_string_lossy().to_string());
-    Ok(ok_json(json!({ "path": canon.to_string_lossy(), "parent": parent, "dirs": dirs, "files": files })))
+    let parent = if crate::path::is_drive_root(&canon) {
+        Some("/".to_string())
+    } else {
+        canon.parent().map(crate::path::display_path)
+    };
+    Ok(ok_json(json!({
+        "path": crate::path::display_path(&canon),
+        "parent": parent,
+        "dirs": dirs,
+        "files": files,
+    })))
 }

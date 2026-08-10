@@ -1399,7 +1399,7 @@ async function openHostDirPicker(onPick, initial, opts) {
   inputEl.addEventListener("keydown", (ev) => {
     if (ev.key !== "Enter") return;
     const v = inputEl.value.trim();
-    if (v.startsWith("/")) {
+    if (v.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(v) || /^[a-zA-Z]:$/.test(v)) {
       cur.path = v;
       load();
     }
@@ -1463,6 +1463,8 @@ async function openHostDirPicker(onPick, initial, opts) {
 
 function joinPath(a, b) {
   if (!b) return a;
+  if (a === "/" && /^[a-zA-Z]:$/.test(b)) return b + "\\";
+  if (/^[a-zA-Z]:[\\/]?$/.test(a)) return a.replace(/[\\/]+$/, "") + "\\" + b;
   if (a === "/") return "/" + b.replace(/^\/+/, "");
   return a.replace(/\/+$/, "") + "/" + b.replace(/^\/+/, "");
 }

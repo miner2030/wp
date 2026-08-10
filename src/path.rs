@@ -61,3 +61,57 @@ pub fn ext_of(path: &str) -> String {
         .map(|e| e.to_string_lossy().to_lowercase())
         .unwrap_or_default()
 }
+
+/// 规范化用于展示/入库的绝对路径:Windows 下 canonicalize 会返回
+/// `\\?\` 前缀的 verbatim 路径,这里转成常规形式;其他平台原样返回。
+pub fn display_path(p: &Path) -> String {
+    #[cfg(windows)]
+    {
+        let s = p.to_string_lossy();
+        if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+            return format!(r"\\{rest}");
+        }
+        if let Some(rest) = s.strip_prefix(r"\\?\") {
+            return rest.to_string();
+        }
+        s.to_string()
+    }
+    #[cfg(not(windows))]
+    {
+        p.to_string_lossy().to_string()
+    }
+}
+
+/// 判断是否为盘符根目录(如 `C:\`),用于"上一级"返回盘符列表。
+#[cfg(windows)]
+pub fn is_drive_root(p: &Path) -> bool {
+    use std::path::Component;
+    let mut comps = p.components();
+    matches!(
+        (comps.next(), comps.next(), comps.next()),
+        (Some(Component::Prefix(_)), Some(Component::RootDir), None)
+    )
+}
+
+#[cfg(not(windows))]
+pub fn is_drive_root(_p: &Path) -> bool {
+    false
+}
+
+/// 列出 Windows 上可用的盘符(如 `C:`、`D:`);其他平台返回空列表。
+#[cfg(windows)]
+pub fn list_drives() -> Vec<String> {
+    let mut out = Vec::new();
+    for b in b'A'..=b'Z' {
+        let letter = (b as char).to_string();
+        if PathBuf::from(format!(r"{letter}:\")).is_dir() {
+            out.push(letter);
+        }
+    }
+    out
+}
+
+#[cfg(not(windows))]
+pub fn list_drives() -> Vec<String> {
+    Vec::new()
+}
