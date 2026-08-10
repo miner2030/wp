@@ -1,0 +1,102 @@
+name: Auto Release Binaries
+
+# 触发条件：当推送以 'v' 开头的标签时自动运行
+on:
+  push:
+    tags:
+      - 'v*'
+
+# 权限配置
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    # 使用矩阵策略在三个主流平台上并行构建
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            name: linux-amd64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            name: darwin-amd64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            name: windows-amd64.exe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      # 1. 检出代码
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. 安装 Rust 工具链
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # 3. 缓存 Cargo 依赖，大幅加速后续构建
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      # 4. 编译项目
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      # 5. 准备打包文件
+      - name: Prepare artifacts
+        shell: bash
+        run: |
+          # 创建存放打包文件的目录
+          mkdir -p dist
+          
+          # 根据系统判断二进制文件的后缀
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
+            BIN_PATH="target/${{ matrix.target }}/release/wp.exe"
+          else
+            BIN_PATH="target/${{ matrix.target }}/release/wp"
+          fi
+          
+          # 复制必要的文件到 dist 目录
+          cp "$BIN_PATH" dist/
+          cp LICENSE README.md dist/ || true # 忽略 LICENSE/README 不存在的报错
+
+      # 6. 创建压缩包 (.zip 或 .tar.gz)
+      - name: Create archive
+        shell: bash
+        run: |
+          cd dist
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          ARCHIVE_NAME="wp-${TAG_NAME}-${{ matrix.name }}"
+          
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
+            # Windows 使用 zip 格式
+            7z a "../${ARCHIVE_NAME}.zip" .
+          else
+            # Linux/macOS 使用 tar.gz 格式
+            tar -czvf "../${ARCHIVE_NAME}.tar.gz" .
+          fi
+
+      # 7. 自动发布到 GitHub Releases
+      - name: Upload to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          # 上传当前平台生成的压缩包
+          files: |
+            wp-*.tar.gz
+            wp-*.zip
+          # 自动根据 Commit 记录生成 Release 更新日志
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
