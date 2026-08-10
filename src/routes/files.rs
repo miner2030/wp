@@ -1,0 +1,240 @@
+use std::path::PathBuf;
+
+use axum::extract::{Path as AxPath, Query, State};
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
+use axum::Json;
+use serde_json::json;
+
+use crate::auth::Session;
+use crate::authz::{can_mutate, can_read, check_download, check_mutate, check_read};
+use crate::error::{ok_json, ApiError, ApiResult};
+use crate::fsops::{collect_dir, locate, remove_dir_all_count, resolve};
+use crate::mime;
+use crate::state::AppState;
+
+#[derive(serde::Deserialize)]
+pub struct Q {
+    #[serde(default)]
+    pub path: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct MkdirReq {
+    pub share_id: i64,
+    #[serde(default)]
+    pub path: String,
+    pub name: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct RenameReq {
+    pub share_id: i64,
+    #[serde(default)]
+    pub path: String,
+    pub old: String,
+    pub new: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct DeleteReq {
+    pub share_id: i64,
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub recursive: bool,
+}
+
+#[derive(serde::Deserialize)]
+pub struct ZipReq {
+    pub share_id: i64,
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub names: Vec<String>,
+}
+
+#[derive(serde::Deserialize)]
+pub struct ZipGetQ {
+    pub share_id: i64,
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub names: String,
+}
+
+#[derive(serde::Serialize)]
+struct Entry {
+    name: String,
+    is_dir: bool,
+    size: i64,
+    mtime: i64,
+    ext: String,
+    kind: &'static str,
+}
+
+pub async fn api_browse(State(st): State<AppState>, session: Session, AxPath(share_id): AxPath<i64>, Query(q): Query<Q>) -> ApiResult<Response> {
+    let (r, rules, _) = resolve(&st, share_id, &q.path).await?;
+    check_read(&session, &r.share, &rules, &r.rel)?;
+    if !r.full.is_dir() {
+        return Err(ApiError::not_found("目录不存在"));
+    }
+    let mut entries = Vec::new();
+    let rd = std::fs::read_dir(&r.full).map_err(|e| ApiError::internal(format!("读取失败: {e}")))?;
+    for de in rd.flatten() {
+        let name = de.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') {
+            continue;
+        }
+        let child_rel = if r.rel.is_empty() { name.clone() } else { format!("{}/{}", r.rel, name) };
+        if !can_read(&session, &r.share, &rules, &child_rel) {
+            continue;
+        }
+        let md = std::fs::metadata(de.path()).ok();
+        let is_dir = md.as_ref().map(|m| m.is_dir()).unwrap_or(false);
+        let ext = if is_dir { String::new() } else { crate::path::ext_of(&name) };
+        let kind = if is_dir { "dir" } else { mime::kind_label(mime::kind_of(&ext)) };
+        entries.push(Entry {
+            name,
+            is_dir,
+            size: md.as_ref().map(|m| m.len() as i64).unwrap_or(0),
+            mtime: md.as_ref().and_then(|m| m.modified().ok()).and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs() as i64).unwrap_or(0),
+            ext,
+            kind,
+        });
+    }
+    entries.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.to_lowercase().cmp(&b.name.to_lowercase())));
+
+    Ok(ok_json(json!({
+        "path": r.rel,
+        "share": { "id": r.share.id, "name": r.share.name, "owner_id": r.share.owner_id, "home": r.share.kind == "home" },
+        "can": {
+            "upload": can_mutate(&session, &r.share, &rules, &r.rel, |u| u.can_upload),
+            "mkdir": can_mutate(&session, &r.share, &rules, &r.rel, |u| u.can_mkdir),
+            "delete": can_mutate(&session, &r.share, &rules, &r.rel, |u| u.can_delete),
+            "download": crate::authz::can_download(&session, &r.share, &rules, &r.rel),
+        },
+        "entries": entries,
+    })))
+}
+
+pub async fn api_file_meta(State(st): State<AppState>, session: Session, AxPath(share_id): AxPath<i64>, Query(q): Query<Q>) -> ApiResult<Response> {
+    let (r, rules, _) = resolve(&st, share_id, &q.path).await?;
+    check_download(&session, &r.share, &rules, &r.rel)?;
+    if !r.full.is_file() {
+        return Err(ApiError::not_found("文件不存在"));
+    }
+    let meta = tokio::fs::metadata(&r.full).await?;
+    let ext = crate::path::ext_of(&r.rel);
+    let name = r.rel.rsplit('/').next().unwrap_or(&r.rel).to_string();
+    Ok(ok_json(json!({
+        "share_id": share_id,
+        "path": r.rel,
+        "name": name,
+        "size": meta.len(),
+        "mtime": meta.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs() as i64).unwrap_or(0),
+        "ext": ext,
+        "mime": mime::mime_of(&ext),
+        "kind": mime::kind_label(mime::kind_of(&ext)),
+    })))
+}
+
+pub async fn api_mkdir(State(st): State<AppState>, session: Session, Json(req): Json<MkdirReq>) -> ApiResult<Response> {
+    let (r, rules, _) = resolve(&st, req.share_id, &req.path).await?;
+    if !r.full.is_dir() {
+        return Err(ApiError::not_found("父目录不存在"));
+    }
+    check_mutate(&session, &r.share, &rules, &r.rel, |u| u.can_mkdir)?;
+    let name = crate::path::sanitize_name(&req.name).map_err(|e| ApiError::bad_request(e))?;
+    match std::fs::create_dir(r.full.join(&name)) {
+        Ok(_) => Ok(ok_json(json!({ "ok": true }))),
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Err(ApiError::conflict("同名文件或文件夹已存在")),
+        Err(e) => Err(ApiError::internal(format!("创建失败: {e}"))),
+    }
+}
+
+pub async fn api_rename(State(st): State<AppState>, session: Session, Json(req): Json<RenameReq>) -> ApiResult<Response> {
+    let (r, rules, _) = resolve(&st, req.share_id, &req.path).await?;
+    check_mutate(&session, &r.share, &rules, &r.rel, |x| x.can_delete)?;
+    let old = crate::path::sanitize_name(&req.old).map_err(|e| ApiError::bad_request(e))?;
+    let new = crate::path::sanitize_name(&req.new).map_err(|e| ApiError::bad_request(e))?;
+    let from = r.full.join(&old);
+    let to = r.full.join(&new);
+    if !from.exists() {
+        return Err(ApiError::not_found("原文件不存在"));
+    }
+    if to.exists() {
+        return Err(ApiError::conflict("目标已存在"));
+    }
+    std::fs::rename(&from, &to).map_err(|e| ApiError::internal(format!("重命名失败: {e}")))?;
+    Ok(ok_json(json!({ "ok": true })))
+}
+
+pub async fn api_delete(State(st): State<AppState>, session: Session, Json(req): Json<DeleteReq>) -> ApiResult<Response> {
+    let (r, rules, _) = resolve(&st, req.share_id, &req.path).await?;
+    check_mutate(&session, &r.share, &rules, &r.rel, |x| x.can_delete)?;
+    if !r.full.exists() {
+        return Err(ApiError::not_found("目标不存在"));
+    }
+    let removed = if r.full.is_dir() {
+        if !req.recursive {
+            let mut it = std::fs::read_dir(&r.full).map_err(|e| ApiError::internal(e.to_string()))?;
+            if it.next().is_some() {
+                return Err(ApiError::conflict("文件夹非空,需要确认递归删除"));
+            }
+            std::fs::remove_dir(&r.full).map_err(|e| ApiError::internal(e.to_string()))?;
+            1
+        } else {
+            remove_dir_all_count(&r.full) as i64
+        }
+    } else {
+        std::fs::remove_file(&r.full).map_err(|e| ApiError::internal(e.to_string()))?;
+        crate::media::purge(&st, req.share_id, &r.rel).await;
+        1
+    };
+    Ok(ok_json(json!({ "ok": true, "removed": removed })))
+}
+
+pub async fn api_zip(State(st): State<AppState>, session: Session, Json(req): Json<ZipReq>) -> Response {
+    let names = req.names.clone();
+    zip_response(&st, &session, req.share_id, &req.path, &names).await.into_response()
+}
+
+pub async fn api_zip_get(State(st): State<AppState>, session: Session, Query(q): Query<ZipGetQ>) -> Response {
+    let names: Vec<String> = q
+        .names
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    zip_response(&st, &session, q.share_id, &q.path, &names).await.into_response()
+}
+
+async fn zip_response(st: &AppState, session: &Session, share_id: i64, path: &str, names: &Vec<String>) -> ApiResult<Response> {
+    let located = locate(st, share_id, path).await?;
+    let rules = st.db.rules(share_id).await?;
+    let mut files: Vec<(String, PathBuf)> = Vec::new();
+    for name in names {
+        let Ok(name) = crate::path::sanitize_name(name) else { continue };
+        let full = located.full.join(&name);
+        let rel = if located.rel.is_empty() { name } else { format!("{}/{}", located.rel, name) };
+        if full.is_dir() {
+            collect_dir(&full, &rel, &mut files);
+        } else if full.is_file() {
+            files.push((rel, full));
+        }
+    }
+    for (rel, _) in &files {
+        check_download(session, &located.share, &rules, rel)?;
+    }
+    if files.is_empty() {
+        return Err(ApiError::not_found("没有可打包的文件"));
+    }
+    let buf = crate::zip::build_zip(&files).map_err(|e| ApiError::internal(e))?;
+    Ok(Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "application/zip")
+        .header("Content-Disposition", "attachment; filename=\"batch.zip\"")
+        .body(axum::body::Body::from(buf))
+        .unwrap())
+}

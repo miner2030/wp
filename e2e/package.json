@@ -1,0 +1,14 @@
+{
+  "name": "wp-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "End-to-end browser tests for WebDisk (Playwright)",
+  "scripts": {
+    "setup": "node setup.js",
+    "e2e": "node e2e.js",
+    "install:browser": "npm exec playwright-core install chromium-headless-shell"
+  },
+  "dependencies": {
+    "playwright-core": "^1.62.1"
+  }
+}

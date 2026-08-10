@@ -1,0 +1,38 @@
+[package]
+name = "wp"
+version = "4.0.0"
+edition = "2021"
+description = "多用户网盘:分片断点上传 · 在线转码播放 · 浏览权限 · 分享链接"
+default-run = "wp"
+
+[dependencies]
+axum = { version = "0.7", features = ["json", "macros"] }
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io"] }
+async-trait = "0.1"
+rusqlite = { version = "0.31", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+argon2 = "0.5"
+rand = "0.8"
+base64 = "0.21"
+sha2 = "0.10"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tower-http = { version = "0.5", features = ["trace"] }
+tower = { version = "0.4", features = ["util"] }
+tokio-rustls = "0.24"
+rustls = "0.21"
+rustls-pemfile = "1.0"
+hyper = { version = "1", features = ["http1", "server"] }
+hyper-util = { version = "0.1", features = ["tokio", "service"] }
+rust-embed = { version = "8", features = ["debug-embed"] }
+percent-encoding = "2"
+chrono = "0.4"
+
+[dev-dependencies]
+reqwest = { version = "0.12", features = ["blocking", "json"] }
+
+[[bin]]
+name = "wp"
+path = "src/main.rs"
