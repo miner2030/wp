@@ -712,16 +712,26 @@ function renderSelectionBar() {
   if (del) del.onclick = () => deleteModal(names);
 }
 
+async function copyTicketUrl(shareId, relPath, hint) {
+  try {
+    const r = await api("POST", "/api/file/dlticket", { share_id: shareId, path: relPath, names: [] });
+    copyText(location.origin + r.url, hint || "下载链接已复制,7 天内免登录可下载");
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
 async function copyDownloadLink() {
   const can = state.can;
   const names = [...state.sel];
   if (!names.length || !state.share || !can || !can.download) return;
   const one = names.length === 1 && !state.selDir.has(names[0]) ? names[0] : null;
+  if (one) return copyTicketUrl(state.share.id, childPath(one));
   try {
     const r = await api("POST", "/api/file/dlticket", {
       share_id: state.share.id,
-      path: one ? childPath(one) : state.path,
-      names: one ? [] : names,
+      path: state.path,
+      names,
     });
     copyText(location.origin + r.url, "下载链接已复制,7 天内免登录可下载");
   } catch (e) {
@@ -763,10 +773,8 @@ document.addEventListener("contextmenu", (ev) => {
   items.push({ icon: "📂", label: "打开", act: () => openItem(name, isdir, kind) });
   if (!isdir) {
     if (state.can.download) items.push({ icon: "⬇", label: "下载", act: () => download(state.share.id, childPath(name), name) });
-    if (state.user) {
-      items.push({ icon: "🔗", label: "分享链接", act: () => shareModal(state.share.id, childPath(name), name) });
-      items.push({ icon: "📋", label: "复制下载链接", act: () => copyText(location.origin + mediaUrl(state.share.id, childPath(name), "dl=1"), "下载链接已复制") });
-    }
+    if (state.user) items.push({ icon: "🔗", label: "分享链接", act: () => shareModal(state.share.id, childPath(name), name) });
+    if (state.can.download) items.push({ icon: "📋", label: "复制下载链接", act: () => copyTicketUrl(state.share.id, childPath(name)) });
   }
   if (state.can.delete) {
     items.push({ sep: true });

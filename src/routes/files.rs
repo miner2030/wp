@@ -245,9 +245,8 @@ pub async fn api_zip_get(State(st): State<AppState>, session: Session, Query(q):
     zip_response(&st, &session, authorized, q.share_id, &q.path, &names).await.into_response()
 }
 
-/// 签发复制下载链接(需登录且有下载权限):单文件 URL 以文件名结尾,批量多选为签名 zip URL。
+/// 签发复制下载链接(按空间规则授权,游客可签发 guest 可见文件):单文件 URL 以文件名结尾,批量多选为签名 zip URL。
 pub async fn api_dlticket(State(st): State<AppState>, session: Session, Json(req): Json<TicketReq>) -> ApiResult<Response> {
-    crate::authz::require_login(&session)?;
     let url = if req.names.is_empty() {
         let (r, rules, _) = resolve(&st, req.share_id, &req.path).await?;
         check_download(&session, &r.share, &rules, &r.rel)?;
