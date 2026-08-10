@@ -142,8 +142,13 @@ fn path_ok(dir: &PathBuf) -> Result<PathBuf, ApiError> {
         return Err(ApiError::bad_request("路径是文件而非目录"));
     }
     std::fs::create_dir_all(dir).map_err(|e| ApiError::bad_request(format!("无法创建目录: {e}")))?;
-    dir.canonicalize()
-        .map_err(|e| ApiError::bad_request(format!("路径无效: {e}")))
+    if let Ok(c) = dir.canonicalize() {
+        return Ok(c);
+    }
+    if dir.is_dir() {
+        return Ok(dir.clone());
+    }
+    Err(ApiError::bad_request("路径无效"))
 }
 
 pub async fn api_shares_list(State(st): State<AppState>, session: Session) -> ApiResult<Response> {
@@ -250,10 +255,16 @@ pub async fn api_host_browse(State(_st): State<AppState>, session: Session, Quer
             "files": [],
         })));
     }
-    let full = PathBuf::from(if is_root { "/" } else { raw });
-    let canon = full
-        .canonicalize()
-        .map_err(|e| ApiError::bad_request(format!("路径不存在: {e}")))?;
+    let full = PathBuf::from(if is_root {
+        "/".to_string()
+    } else {
+        crate::path::drive_of(&raw)
+    });
+    let canon = match full.canonicalize() {
+        Ok(c) => c,
+        Err(_e) if full.is_absolute() && full.is_dir() => full,
+        Err(e) => return Err(ApiError::bad_request(format!("路径不存在: {e}"))),
+    };
     if !canon.is_dir() {
         return Err(ApiError::bad_request("不是目录"));
     }

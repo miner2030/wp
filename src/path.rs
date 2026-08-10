@@ -115,3 +115,54 @@ pub fn list_drives() -> Vec<String> {
 pub fn list_drives() -> Vec<String> {
     Vec::new()
 }
+
+/// 把盘符输入规范化为根路径:`C:` / `C:/` -> `C:\`;其他输入原样返回。
+/// 盘符根不经过 canonicalize(其返回的 verbatim 路径对 read_dir 等并无必要,
+/// 且部分环境下对盘符根调用 canonicalize 会报错),故单独规范。
+#[cfg(windows)]
+pub fn drive_of(raw: &str) -> String {
+    let bytes = raw.as_bytes();
+    if bytes.len() == 2 && bytes[1] == b':' {
+        return format!("{raw}\\");
+    }
+    if bytes.len() == 3 && bytes[1] == b':' && (bytes[2] == b'/' || bytes[2] == b'\\') {
+        return format!("{}\\", &raw[..2]);
+    }
+    raw.to_string()
+}
+
+#[cfg(not(windows))]
+pub fn drive_of(raw: &str) -> String {
+    raw.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn drive_of_windows() {
+        assert_eq!(drive_of("C:"), r"C:\");
+        assert_eq!(drive_of(r"C:\"), r"C:\");
+        assert_eq!(drive_of("C:/"), r"C:\");
+        assert_eq!(drive_of(r"C:\Users"), r"C:\Users");
+        assert_eq!(drive_of(r"D:\x"), r"D:\x");
+        assert_eq!(drive_of(""), "");
+        assert_eq!(drive_of("/"), "/");
+        assert_eq!(drive_of(r"\\server\share"), r"\\server\share");
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn drive_of_identity() {
+        assert_eq!(drive_of("C:"), "C:");
+        assert_eq!(drive_of(r"C:\"), r"C:\");
+        assert_eq!(drive_of("C:/"), "C:/");
+    }
+
+    #[test]
+    fn display_path_normal() {
+        assert_eq!(display_path(Path::new("/tmp/x")), "/tmp/x");
+    }
+}
