@@ -1463,8 +1463,8 @@ async function openHostDirPicker(onPick, initial, opts) {
 
 function joinPath(a, b) {
   if (!b) return a;
-  if (a === "/" && /^[a-zA-Z]:$/.test(b)) return b + "\\";
-  if (/^[a-zA-Z]:[\\/]?$/.test(a)) return a.replace(/[\\/]+$/, "") + "\\" + b;
+  if (a === "/" && /^[a-zA-Z]:?$/.test(b)) return b.replace(/:$/, "") + ":\\";
+  if (/^[a-zA-Z]:[\\/]/.test(a)) return a.replace(/[\\/]+$/, "") + "\\" + b;
   if (a === "/") return "/" + b.replace(/^\/+/, "");
   return a.replace(/\/+$/, "") + "/" + b.replace(/^\/+/, "");
 }

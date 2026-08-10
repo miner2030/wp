@@ -260,10 +260,14 @@ pub async fn api_host_browse(State(_st): State<AppState>, session: Session, Quer
     } else {
         crate::path::drive_of(&raw)
     });
-    let canon = match full.canonicalize() {
-        Ok(c) => c,
-        Err(_e) if full.is_absolute() && full.is_dir() => full,
-        Err(e) => return Err(ApiError::bad_request(format!("路径不存在: {e}"))),
+    let canon = if crate::path::is_drive_root(&full) {
+        full
+    } else {
+        match full.canonicalize() {
+            Ok(c) => c,
+            Err(_e) if full.is_absolute() && full.is_dir() => full,
+            Err(e) => return Err(ApiError::bad_request(format!("路径不存在: {e}"))),
+        }
     };
     if !canon.is_dir() {
         return Err(ApiError::bad_request("不是目录"));

@@ -105,7 +105,7 @@ pub fn list_drives() -> Vec<String> {
     for b in b'A'..=b'Z' {
         let letter = (b as char).to_string();
         if PathBuf::from(format!(r"{letter}:\")).is_dir() {
-            out.push(letter);
+            out.push(format!("{letter}:"));
         }
     }
     out
@@ -151,6 +151,9 @@ mod tests {
         assert_eq!(drive_of(""), "");
         assert_eq!(drive_of("/"), "/");
         assert_eq!(drive_of(r"\\server\share"), r"\\server\share");
+        for d in list_drives() {
+            assert!(d.ends_with(':'), "盘符条目应为 X: 形式,实际 {d}");
+        }
     }
 
     #[cfg(not(windows))]
