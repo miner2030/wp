@@ -25,6 +25,8 @@ pub media_dir: PathBuf,
     pub tls_listen: String,
     pub tls: Arc<crate::tls::TlsRuntime>,
     pub(crate) thumb_pending: Arc<Mutex<HashSet<(i64, String)>>>,
+    /// 抽帧失败记录 (share, rel) -> 最近失败时刻,5 分钟内不重复尝试。
+    pub(crate) thumb_failed: Arc<Mutex<HashMap<(i64, String), i64>>>,
     captchas: Arc<Mutex<HashMap<String, (String, i64)>>>,
 }
 
@@ -66,9 +68,14 @@ impl AppState {
             chunk_size: if cfg.chunk_size > 0 { cfg.chunk_size } else { crate::config::DEFAULT_CHUNK },
             captchas: Arc::new(Mutex::new(HashMap::new())),
             thumb_pending: Arc::new(Mutex::new(HashSet::new())),
+            thumb_failed: Arc::new(Mutex::new(HashMap::new())),
             tls_listen: cfg.tls_listen.clone(),
             tls: Arc::new(crate::tls::TlsRuntime::default()),
         };
+        match &st.ffmpeg {
+            Some(p) => tracing::info!("检测到 ffmpeg: {}", p.display()),
+            None => tracing::warn!("未找到 ffmpeg:视频转码与封面抽帧不可用。请安装 ffmpeg 并加入系统 PATH,或设置环境变量 WP_FFMPEG 指向其路径"),
+        }
         st.prune_uploads().await;
         st.bootstrap_admin(&cfg.admin_user, &cfg.admin_pass).await;
         tokio::spawn(crate::tls::run(st.clone()));

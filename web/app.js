@@ -96,19 +96,42 @@ function formatTime(ts) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-function emojiFor(x) {
-  if (x.is_dir) return "📁";
-  const e = x.ext;
-  if (["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "avif", "ico", "tif", "tiff"].includes(e)) return "🖼️";
-  if (["mp4", "m4v", "webm", "ogv", "mov", "avi", "mkv", "flv", "wmv", "mpg", "mpeg", "ts", "3gp", "m2ts"].includes(e)) return "🎬";
-  if (["mp3", "wav", "ogg", "oga", "flac", "m4a", "aac", "opus", "wma"].includes(e)) return "🎵";
-  if (["zip", "rar", "7z", "tar", "gz", "bz2", "xz"].includes(e)) return "🗜️";
-  if (["pdf"].includes(e)) return "📕";
-  if (["doc", "docx"].includes(e)) return "📘";
-  if (["ppt", "pptx"].includes(e)) return "📙";
-  if (["xls", "xlsx", "csv"].includes(e)) return "📗";
-  if (["txt", "md", "json", "log", "yml", "yaml", "ini", "conf", "toml", "sh", "py", "js", "ts", "html"].includes(e)) return "📄";
-  return "📦";
+// ---------------- 文件图标(SVG,按格式分类) ----------------
+
+const FICO_FOLDER = `<svg class="fico" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path d="M10 21.2a3.4 3.4 0 0 1 3.4-3.4h11.6l2.8 3.1h23.8a3.4 3.4 0 0 1 3.4 3.4v1.8H10z" fill="#f59e0b"/><path d="M10 24.6h44v17.2a3.4 3.4 0 0 1-3.4 3.4H13.4a3.4 3.4 0 0 1-3.4-3.4z" fill="#fbbf24"/><path d="M10 32.5h44" stroke="#fcd34d" stroke-width="2"/></svg>`;
+const FICO_IMG = `<circle cx="25" cy="46.6" r="2.5" fill="#fff"/><path d="M19.5 53.4 26.5 46.4 30.8 50.7 34.2 47.3 41 53.4Z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>`;
+const FICO_VID = `<path d="M21 45.6a2 2 0 0 1 2-2h18a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H23a2 2 0 0 1-2-2z" fill="none" stroke="#fff" stroke-width="2"/><path d="M30.2 46.7v5.4l4.6-2.7z" fill="#fff"/>`;
+const FICO_MUS = `<circle cx="28.2" cy="49.7" r="2.9" fill="#fff"/><rect x="29.8" y="43.8" width="2" height="6.4" fill="#fff"/><path d="M31.6 44.1c2.4-.2 4.3 1.2 4.5 3h-4.1z" fill="#fff"/>`;
+const FICO_ZIP = `<rect x="20.5" y="45.6" width="10.5" height="8.8" rx="1.5" fill="none" stroke="#fff" stroke-width="1.8"/><rect x="33" y="45.6" width="10.5" height="8.8" rx="1.5" fill="none" stroke="#fff" stroke-width="1.8"/><rect x="31.1" y="46.5" width="1.8" height="7.2" fill="#fff"/><path d="M33.2 48.8h2.6M33.2 51.6h2.6" stroke="#fff" stroke-width="1.5"/>`;
+const FICO_LINES = `<path d="M21 47.7h24M21 51.4h17" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>`;
+
+function ficoPage(color, tag, glyph) {
+  const longTag = tag && tag.length > 2;
+  const label = tag
+    ? `<text x="32" y="${longTag ? 50.5 : 51.3}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="${longTag ? 8 : 11.5}" fill="#fff" letter-spacing="0.4">${tag}</text>`
+    : (glyph || "");
+  return `<svg class="fico" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path d="M15 5h24l10 10v44a2 2 0 0 1-2 2H15a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" fill="#fff" stroke="#d9dfee" stroke-width="1.6"/><path d="M39 5v10h10z" fill="#eef1fb" stroke="#d9dfee" stroke-width="1.2"/><rect x="16" y="42.5" width="32" height="11.5" rx="3" fill="${color}"/>${label}</svg>`;
+}
+
+const FICO_GROUPS = [
+  [["pdf"], ficoPage("#ef4444", "PDF")],
+  [["doc", "docx", "docm", "odt", "rtf"], ficoPage("#2563eb", "W")],
+  [["xls", "xlsx", "xlsm", "ods", "csv", "tsv"], ficoPage("#16a34a", "X")],
+  [["ppt", "pptx", "odp"], ficoPage("#ea580c", "P")],
+  [["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "avif", "ico", "tif", "tiff", "heic"], ficoPage("#8b5cf6", null, FICO_IMG)],
+  [["mp4", "m4v", "webm", "ogv", "mov", "avi", "mkv", "flv", "wmv", "mpg", "mpeg", "ts", "3gp", "m2ts", "m2ts"], ficoPage("#7c3aed", null, FICO_VID)],
+  [["mp3", "wav", "ogg", "oga", "flac", "m4a", "aac", "opus", "wma", "amr"], ficoPage("#0d9488", null, FICO_MUS)],
+  [["zip", "rar", "7z", "tar", "gz", "bz2", "xz", "iso"], ficoPage("#d97706", null, FICO_ZIP)],
+  [["txt", "log", "md", "markdown", "json", "yaml", "yml", "ini", "conf", "toml", "sh", "bash", "py", "js", "mjs", "ts", "html", "htm", "css", "xml", "sql", "properties", "env"], ficoPage("#64748b", null, FICO_LINES)],
+];
+
+function fileIco(x) {
+  if (x.is_dir) return FICO_FOLDER;
+  const e = (x.ext || "").toLowerCase();
+  for (const [exts, svg] of FICO_GROUPS) {
+    if (exts.includes(e)) return svg;
+  }
+  return ficoPage("#9ca3af", "");
 }
 
 function kindOf(x) {
@@ -141,6 +164,21 @@ function mediaUrl(shareId, path, extra) {
 function thumbUrl(shareId, path) {
   return `/api/media/thumb/${shareId}?path=${encodeURIComponent(path)}`;
 }
+
+window.thumbErr = (img) => {
+  const n = parseInt(img.dataset.tr || "0", 10);
+  if (n <= 0) {
+    img.closest(".thumb").classList.add("fail");
+    return;
+  }
+  img.dataset.tr = String(n - 1);
+  const wait = n > 2 ? 1200 : n > 1 ? 3000 : 6000;
+  setTimeout(() => {
+    if (img.isConnected) {
+      img.src = img.dataset.src + (img.dataset.src.includes("?") ? "&" : "?") + "r=" + Date.now();
+    }
+  }, wait);
+};
 
 function download(shareId, path, name) {
   const a = document.createElement("a");
@@ -538,7 +576,7 @@ function renderFiles(entries) {
       ${sorted
         .map(
           (x) => `<tr class="ftr" data-name="${esc(x.name)}" data-isdir="${x.is_dir ? 1 : 0}" data-kind="${esc(x.kind || "other")}">
-        <td class="fname"><label class="sel-cb"><input type="checkbox" class="sel-in"></label><span class="f-ico">${emojiFor(x)}</span><span>${esc(x.name)}</span></td>
+        <td class="fname"><label class="sel-cb"><input type="checkbox" class="sel-in"></label><span class="f-ico">${fileIco(x)}</span><span>${esc(x.name)}</span></td>
         <td>${x.is_dir ? "—" : formatSize(x.size)}</td>
         <td class="fdate">${formatTime(x.mtime)}</td>
         <td><span class="ftr-acts">${!x.is_dir && state.can.download ? `<button class="btn mini ghost" data-qdl="${esc(x.name)}" title="下载">⬇</button>` : ""}
@@ -562,8 +600,8 @@ function renderFiles(entries) {
       const showThumb = state.share && (isImg || isVid);
       const turl = isImg ? mediaUrl(state.share.id, childPath(x.name)) : thumbUrl(state.share.id, childPath(x.name));
       const thumb = showThumb
-        ? `<div class="thumb"><img src="${esc(turl)}" loading="lazy" onerror="this.closest('.thumb').classList.add('fail')"><span class="tfb">${emojiFor(x)}</span></div>`
-        : `<div class="thumb"><span style="filter:drop-shadow(0 6px 10px rgba(24,32,64,.14))">${emojiFor(x)}</span></div>`;
+        ? `<div class="thumb"><img src="${esc(turl)}" loading="lazy" data-src="${esc(turl)}" data-tr="3" onerror="thumbErr(this)"><span class="tfb">${fileIco(x)}</span></div>`
+        : `<div class="thumb"><span style="filter:drop-shadow(0 6px 10px rgba(24,32,64,.14))">${fileIco(x)}</span></div>`;
       return `<div class="tile ${kc}" data-name="${esc(x.name)}" data-isdir="${x.is_dir ? 1 : 0}" data-kind="${esc(x.kind || "other")}">
         <label class="sel-cb"><input type="checkbox" class="sel-in"></label>
         <div class="tile-acts">
@@ -1106,18 +1144,226 @@ async function openMedia(name, mask) {
   pvTimer = setTimeout(poll, 2500);
 }
 
-function openFile(name, mask) {
+// ---------------- 文档 / 表格 预览与编辑 ----------------
+
+const EDIT_TEXT_EXTS = ["txt", "log", "md", "yaml", "yml", "conf", "ini", "toml", "csv", "tsv", "json", "xml", "html", "htm", "css", "js", "mjs", "ts", "sh", "bash", "py", "sql", "properties", "env"];
+const SHEET_EXTS = ["xlsx", "xlsm", "xls"];
+const DOCX_EXTS = ["docx", "docm"];
+
+async function openFile(name, mask) {
   const share = state.share;
   const path = childPath(name);
+  let meta;
+  try {
+    meta = await api("GET", `/api/file/meta/${share.id}?path=${encodeURIComponent(path)}`);
+  } catch (e) {
+    if (mask) mask.remove();
+    return toast(e.message);
+  }
   mask = pvPrepare(mask, name);
   const sEl = mask.querySelector("#pv-size");
-  if (sEl) sEl.textContent = "该类型文件请下载后查看";
+  if (sEl) sEl.textContent = `${formatSize(meta.size)} · ${esc(meta.mime)}`;
   mask.querySelector("[data-dl]").onclick = () => download(share.id, path, name);
   const sh = mask.querySelector("[data-share]");
   if (sh) sh.onclick = () => shareModal(share.id, path, name);
   pvNavButtons(mask);
   const body = mask.querySelector("#pv-body");
+  pvCancel();
+  const ext = meta.ext;
+  if (ext === "pdf") return pvPdf(share, path, body);
+  if (EDIT_TEXT_EXTS.includes(ext)) return pvText(share, path, body, meta.writable);
+  if (SHEET_EXTS.includes(ext)) return pvSheet(share, path, body, ext, meta.writable);
+  if (DOCX_EXTS.includes(ext)) return pvDocx(share, path, body);
   body.innerHTML = '<div class="pv-dl-only">该类型文件请下载后查看</div>';
+}
+
+function pvPdf(share, path, body) {
+  body.classList.add("pv-fill");
+  body.innerHTML = `<iframe class="pv-pdf" src="${esc(mediaUrl(share.id, path))}" title="PDF 预览"></iframe>`;
+}
+
+async function pvText(share, path, body, writable) {
+  const editable = !!state.user && !!writable;
+  let r;
+  try {
+    r = await api("GET", `/api/file/text/${share.id}?path=${encodeURIComponent(path)}`);
+  } catch (e) {
+    body.innerHTML = `<p class="pv-msg">${esc(e.message)}</p>`;
+    return;
+  }
+  body.classList.add("pv-fill");
+  const ta = document.createElement("textarea");
+  ta.className = "pv-textarea" + (editable ? " editable" : "");
+  ta.value = r.text;
+  ta.readOnly = !editable;
+  ta.spellcheck = false;
+  body.appendChild(ta);
+  if (!editable) return;
+  const bar = document.createElement("div");
+  bar.className = "pv-edit-bar";
+  bar.innerHTML = `<button class="btn mini" id="pv-save">💾 保存 (Ctrl+S)</button><span id="pv-save-msg" class="pv-save-msg"></span>`;
+  body.insertBefore(bar, body.firstChild);
+  const saveBtn = bar.querySelector("#pv-save");
+  const msgEl = bar.querySelector("#pv-save-msg");
+  const doSave = async () => {
+    saveBtn.disabled = true;
+    msgEl.textContent = "保存中...";
+    try {
+      const rr = await api("POST", `/api/file/text/${share.id}?path=${encodeURIComponent(path)}`, { content: ta.value });
+      msgEl.textContent = `✓ 已保存 (${formatSize(rr.size)})`;
+      pvMarkSaved();
+    } catch (e) {
+      msgEl.textContent = "保存失败: " + e.message;
+    }
+    setTimeout(() => { saveBtn.disabled = false; }, 1800);
+  };
+  saveBtn.onclick = doSave;
+  ta.addEventListener("keydown", (ev) => {
+    if ((ev.ctrlKey || ev.metaKey) && ev.key === "s") {
+      ev.preventDefault();
+      doSave();
+    }
+  });
+}
+
+async function pvDocx(share, path, body) {
+  if (typeof docx === "undefined" || !docx.renderAsync) {
+    body.innerHTML = '<p class="pv-msg">文档渲染组件未加载</p>';
+    return;
+  }
+  body.classList.add("pv-fill");
+  body.innerHTML = '<div class="pv-loading"><div class="spinner"></div><span>文档加载中...</span></div>';
+  try {
+    const resp = await fetch(mediaUrl(share.id, path));
+    if (!resp.ok) throw new Error("读取失败 (" + resp.status + ")");
+    const blob = await resp.blob();
+    body.innerHTML = "";
+    const holder = document.createElement("div");
+    holder.className = "pv-docx";
+    body.appendChild(holder);
+    await docx.renderAsync(blob, holder, null, { inWrapper: true, ignoreLastRenderedPageBreak: true });
+  } catch (e) {
+    if (body.isConnected) body.innerHTML = `<p class="pv-msg">文档无法解析: ${esc(e.message)}</p>`;
+  }
+}
+
+let pvSheetWb = null;
+let pvSheetName = "";
+let pvSheetPath = "";
+let pvSheetExtName = "";
+let pvSheetEditable = false;
+
+async function pvSheet(share, path, body, ext, writable) {
+  if (typeof XLSX === "undefined") {
+    body.innerHTML = '<p class="pv-msg">表格解析组件未加载</p>';
+    return;
+  }
+  pvSheetPath = path;
+  pvSheetExtName = ext;
+  pvSheetEditable = !!state.user && !!writable && (ext === "xlsx" || ext === "xls");
+  body.classList.add("pv-fill");
+  body.innerHTML = '<div class="pv-loading"><div class="spinner"></div><span>表格加载中...</span></div>';
+  try {
+    const resp = await fetch(mediaUrl(share.id, path));
+    if (!resp.ok) throw new Error("读取失败 (" + resp.status + ")");
+    const buf = await resp.arrayBuffer();
+    pvSheetWb = XLSX.read(buf);
+  } catch (e) {
+    if (body.isConnected) body.innerHTML = `<p class="pv-msg">${esc(e.message)}</p>`;
+    return;
+  }
+  const sheets = pvSheetWb.SheetNames;
+  if (!sheets.length) {
+    body.innerHTML = '<p class="pv-msg">表格中没有工作表</p>';
+    return;
+  }
+  let gridBox = null;
+  const tabbar = document.createElement("div");
+  tabbar.className = "pv-sheet-tabs";
+  sheets.forEach((sn, i) => {
+    const b = document.createElement("button");
+    b.className = "btn mini sheet-tab" + (i === 0 ? " active" : "");
+    b.textContent = sn;
+    b.onclick = () => {
+      tabbar.querySelectorAll(".sheet-tab").forEach((x) => x.classList.remove("active"));
+      b.classList.add("active");
+      renderSheetGrid(gridBox, sn);
+    };
+    tabbar.appendChild(b);
+  });
+  body.innerHTML = "";
+  body.appendChild(tabbar);
+  gridBox = document.createElement("div");
+  gridBox.className = "pv-grid-wrap";
+  body.appendChild(gridBox);
+  renderSheetGrid(gridBox, sheets[0]);
+}
+
+function renderSheetGrid(box, sheetName) {
+  if (!box) return;
+  pvSheetName = sheetName;
+  const ws = pvSheetWb.Sheets[sheetName];
+  if (!ws) return;
+  const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: "" });
+  const tab = document.createElement("table");
+  tab.className = "pv-grid";
+  const cols = Math.max(1, ...aoa.map((r) => (Array.isArray(r) ? r.length : 0)));
+  const th = document.createElement("tr");
+  th.innerHTML = `<th class="corner"></th>` + Array.from({ length: cols }, (_, i) => `<th class="colhead">${String.fromCharCode(65 + i)}</th>`).join("");
+  tab.appendChild(th);
+  aoa.forEach((row, ri) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td class="rowhead">${ri + 1}</td>`;
+    for (let ci = 0; ci < cols; ci++) {
+      const td = document.createElement("td");
+      const v = Array.isArray(row) && row[ci] !== undefined && row[ci] !== null ? String(row[ci]) : "";
+      if (pvSheetEditable) td.contentEditable = "true";
+      td.textContent = v;
+      tr.appendChild(td);
+    }
+    tab.appendChild(tr);
+  });
+  box.innerHTML = "";
+  box.appendChild(tab);
+  if (!pvSheetEditable) return;
+  const bar = document.createElement("div");
+  bar.className = "pv-edit-bar";
+  bar.innerHTML = `<button class="btn mini" id="pv-save">💾 保存表格</button><span id="pv-save-msg" class="pv-save-msg"></span>`;
+  box.insertBefore(bar, box.firstChild);
+  const saveBtn = bar.querySelector("#pv-save");
+  const msgEl = bar.querySelector("#pv-save-msg");
+  saveBtn.onclick = async () => {
+    saveBtn.disabled = true;
+    msgEl.textContent = "保存中...";
+    try {
+      const aoa2 = Array.from(tab.querySelectorAll("tr")).slice(1).map((tr) =>
+        Array.from(tr.querySelectorAll("td:not(.rowhead)")).map((td) => td.textContent.trim())
+      );
+      const nws = XLSX.utils.aoa_to_sheet(aoa2);
+      const nwb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(nwb, nws, sheetName);
+      const out = XLSX.write(nwb, { bookType: pvSheetExtName === "xls" ? "biff8" : "xlsx", type: "array" });
+      const headers = {};
+      if (state.token) headers["Authorization"] = "Bearer " + state.token;
+      headers["Content-Type"] = "application/octet-stream";
+      const resp = await fetch(`/api/file/binary/${state.share.id}?path=${encodeURIComponent(pvSheetPath)}`, { method: "POST", headers, body: out });
+      const ct = resp.headers.get("content-type") || "";
+      const j = ct.includes("json") ? await resp.json().catch(() => null) : null;
+      if (!resp.ok) throw new Error(j && j.error ? j.error : "保存失败 (" + resp.status + ")");
+      msgEl.textContent = "✓ 已保存";
+      pvMarkSaved();
+    } catch (e) {
+      msgEl.textContent = "保存失败: " + e.message;
+    }
+    setTimeout(() => { saveBtn.disabled = false; }, 1800);
+  };
+}
+
+function pvMarkSaved() {
+  const mask = document.querySelector(".modal.pv");
+  if (!mask) return;
+  const dl = mask.querySelector("[data-dl]");
+  if (dl) dl.textContent = "⬇ 已更新,重新下载";
 }
 
 async function shareModal(shareId, path, name) {

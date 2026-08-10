@@ -267,6 +267,15 @@ async function closeModals(p) {
 
   // ============ 5.8. visitor (logged-out) sees only guest-visible folders ============
   try {
+    await page.locator(".tile", { hasText: "guest_ok" }).dblclick();
+    await page.waitForSelector("#btn-perm", { timeout: 10000 });
+    await page.click("#btn-perm");
+    await page.waitForSelector("#perm-access", { timeout: 10000 });
+    await page.selectOption("#perm-access", "guest");
+    await page.click("#perm-save");
+    await page.waitForSelector(".modal", { state: "detached", timeout: 5000 });
+    await page.locator('.crumbs[data-path=""]').click();
+    await page.waitForSelector(".tile", { timeout: 10000 });
     const gctx = await browser.newContext();
     const gp = await gctx.newPage();
     pageErrors(gp);

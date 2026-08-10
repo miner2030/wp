@@ -84,7 +84,7 @@ pub async fn api_media_status(State(st): State<AppState>, session: Session, AxPa
 }
 
 fn previewable(ext: &str) -> bool {
-    matches!(mime::kind_of(ext), mime::MediaKind::Image | mime::MediaKind::Video | mime::MediaKind::Audio)
+    mime::previewable(ext)
 }
 
 pub async fn api_media_get(State(st): State<AppState>, session: Session, headers: HeaderMap, AxPath(share_id): AxPath<i64>, Query(q): Query<TQ>) -> Response {

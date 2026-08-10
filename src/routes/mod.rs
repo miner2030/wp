@@ -1,5 +1,6 @@
 pub mod admin;
 pub mod auth;
+pub mod doc;
 pub mod files;
 pub mod media;
 pub mod share;

@@ -37,6 +37,35 @@ pub fn native_video(ext: &str) -> bool {
     matches!(ext, "mp4" | "m4v" | "webm" | "ogv" | "mov")
 }
 
+/// 可作为纯文本在线查看/编辑的类型。
+pub fn editable_text(ext: &str) -> bool {
+    matches!(
+        ext,
+        "txt" | "log" | "md" | "markdown" | "yaml" | "yml" | "conf" | "ini" | "toml" | "csv" | "tsv"
+            | "json" | "xml" | "html" | "htm" | "css" | "js" | "mjs" | "ts" | "sh" | "bash" | "py"
+            | "sql" | "properties" | "env" | "gitignore" | "gitconfig" | "dockerfile" | "makefile"
+    )
+}
+
+/// 表格类(可用 SheetJS 在线读写)。
+pub fn office_sheet(ext: &str) -> bool {
+    matches!(ext, "xlsx" | "xlsm" | "xls")
+}
+
+/// Word 新格式(可在线渲染预览)。
+pub fn office_doc(ext: &str) -> bool {
+    matches!(ext, "docx" | "docm")
+}
+
+/// 支持在线预览的扩展名(媒体 + 文档)。
+pub fn previewable(ext: &str) -> bool {
+    !matches!(kind_of(ext), MediaKind::Other)
+        || editable_text(ext)
+        || office_sheet(ext)
+        || office_doc(ext)
+        || matches!(ext, "pdf" | "doc" | "xlsm" | "odt" | "ods" | "odp" | "rtf")
+}
+
 pub fn mime_of(ext: &str) -> String {
     match ext {
         "mp4" => "video/mp4",

@@ -302,6 +302,10 @@ table.files-table tr:hover td { background: #f7f9ff; }
 table.files-table .fname { cursor: pointer; display: flex; align-items: center; gap: 10px; }
 .files-table .fdate { color: var(--muted); font-size: 12px; }
 .files-table .f-ico { font-size: 17px; width: 24px; text-align: center; }
+.files-table .f-ico .fico { width: 21px; height: 21px; vertical-align: middle; }
+.tile .thumb .fico { width: 76px; height: 76px; filter: drop-shadow(0 6px 10px rgba(24,32,64,.16)); }
+.tile .thumb.fail .fico { display: none; }
+.tile .thumb.fail .tfb { line-height: 0; }
 .files-table .ftr { cursor: pointer; }
 .ftr-acts { display: flex; gap: 4px; justify-content: flex-end; opacity: 0; transition: opacity .15s; }
 tr.ftr:hover .ftr-acts { opacity: 1; }
@@ -402,6 +406,62 @@ tr.ftr:hover .ftr-acts { opacity: 1; }
 .modal.pv .meta .pv-nav { display: inline-flex; gap: 6px; margin-right: 10px; }
 .modal.pv .meta .pv-nav .btn { min-width: 30px; padding: 3px 0; font-size: 15px; line-height: 1.2; }
 .modal.pv .pv-dl-only { padding: 40px; text-align: center; color: var(--muted); }
+
+/* 文档 / 表格预览 */
+.modal.pv .mbody.pv-fill {
+  display: flex; flex-direction: column; align-items: stretch;
+  background: rgba(12,16,32,.55); border-radius: 12px;
+  max-width: calc(100vw - 48px); min-height: 60vh; padding: 10px !important;
+}
+.modal.pv .mbody.pv-fill > iframe.pv-pdf {
+  width: 100%; flex: 1; min-height: 60vh; border: none; border-radius: 8px;
+  background: #525659; color-scheme: light;
+}
+.modal.pv .pv-textarea {
+  flex: 1; width: 100%; min-height: 60vh; resize: none; border: none;
+  border-radius: 8px; padding: 14px; background: #0d1226; color: #e6e9f5;
+  font: 13px/1.7 "SF Mono", Menlo, Consolas, "Courier New", monospace;
+  outline: none; overflow: auto; white-space: pre; word-wrap: normal;
+}
+.modal.pv .pv-textarea.editable { border: 1px solid rgba(78,110,242,.5); }
+.modal.pv .pv-textarea.editable:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(78,110,242,.25); }
+.modal.pv .pv-edit-bar {
+  display: flex; align-items: center; gap: 12px; padding: 2px 2px 10px;
+}
+.modal.pv .pv-edit-bar .pv-save-msg { font-size: 12px; color: #7fe0a5; }
+.modal.pv .pv-loading {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  color: rgba(255,255,255,.7); font-size: 13px; min-height: 200px;
+}
+.modal.pv .pv-msg { padding: 40px; text-align: center; color: var(--muted); }
+.modal.pv .pv-docx {
+  width: 100%; background: #525659; border-radius: 8px; overflow: auto;
+  padding: 14px 0; flex: 1;
+}
+.modal.pv .pv-docx .docx-wrapper { display: flex; justify-content: center; }
+.modal.pv .pv-docx .docx-wrapper > section { background: #fff; color: #1a2230; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,.4); }
+.modal.pv .pv-sheet-tabs {
+  display: flex; gap: 6px; flex-wrap: wrap; padding: 2px 2px 8px;
+}
+.modal.pv .pv-sheet-tabs .btn.mini { background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.22); color: #fff; }
+.modal.pv .pv-sheet-tabs .btn.mini.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.modal.pv .pv-grid-wrap { flex: 1; overflow: auto; border-radius: 8px; }
+.modal.pv .pv-grid {
+  border-collapse: collapse; width: 100%; background: #0d1226;
+  font: 12px/1.5 -apple-system, "Segoe UI", sans-serif;
+}
+.modal.pv .pv-grid th,
+.modal.pv .pv-grid td {
+  border: 1px solid rgba(255,255,255,.14); padding: 4px 10px; min-width: 70px;
+  color: #dfe4f3; white-space: nowrap;
+}
+.modal.pv .pv-grid th.corner, .modal.pv .pv-grid th.colhead, .modal.pv .pv-grid td.rowhead {
+  background: #1a2140; color: #8ea0d6; position: sticky; text-align: center; font-weight: 600;
+}
+.modal.pv .pv-grid th.colhead { top: 0; }
+.modal.pv .pv-grid td.rowhead { left: 0; }
+.modal.pv .pv-grid td[contenteditable="true"] { background: #111a33; }
+.modal.pv .pv-grid td[contenteditable="true"]:focus { outline: 2px solid var(--primary); background: #162450; }
 .modal .mhead {
   padding: 15px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px;
 }

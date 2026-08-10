@@ -136,6 +136,7 @@ pub async fn api_file_meta(State(st): State<AppState>, session: Session, AxPath(
         "ext": ext,
         "mime": mime::mime_of(&ext),
         "kind": mime::kind_label(mime::kind_of(&ext)),
+        "writable": can_mutate(&session, &r.share, &rules, &r.rel, |u| u.can_upload),
     })))
 }
 

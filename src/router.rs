@@ -27,6 +27,8 @@ pub fn build(state: AppState) -> Router {
         // ---- 文件操作 ----
         .route("/api/browse/:share_id", get(r::files::api_browse))
         .route("/api/file/meta/:share_id", get(r::files::api_file_meta))
+        .route("/api/file/text/:share_id", get(r::doc::api_file_text_get).post(r::doc::api_file_text_put))
+        .route("/api/file/binary/:share_id", post(r::doc::api_file_binary_put))
         .route("/api/mkdir", post(r::files::api_mkdir))
         .route("/api/rename", post(r::files::api_rename))
         .route("/api/delete", post(r::files::api_delete))

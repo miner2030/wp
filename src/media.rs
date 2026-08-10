@@ -7,6 +7,8 @@ use crate::state::AppState;
 
 /// 封面抽帧目标宽:小图足够网格缩略,保持等比。
 const THUMB_WIDTH: u32 = 320;
+/// 抽帧失败后的重试窗口(秒),期间不再重复启动 ffmpeg。
+const THUMB_FAIL_TTL: i64 = 300;
 
 /// 保证 (share, rel) 有转码记录且任务已启动;已在转码或转码完成则直接返回。
 pub async fn ensure(st: &AppState, share_id: i64, rel: &str, input: &Path) -> Result<(), String> {
@@ -39,13 +41,23 @@ pub fn thumb_path(st: &AppState, share_id: i64, rel: &str) -> PathBuf {
 }
 
 /// 懒生成视频封面:已存在直接返回;否则用 ffmpeg 抽第 1 秒一帧存为 jpg。
-/// 并发请求由 `thumb_pending` 去重,同 key 只会有一路真正抽帧。
+/// 并发请求由 `thumb_pending` 去重,同 key 只会有一路真正抽帧;
+/// 失败在 `thumb_failed` 记录,窗口内直接返回失败避免反复启动 ffmpeg。
 pub async fn ensure_thumb(st: &AppState, share_id: i64, rel: &str, input: &Path) -> Result<PathBuf, String> {
     let out = thumb_path(st, share_id, rel);
     if out.exists() {
         return Ok(out);
     }
     let key = (share_id, rel.to_string());
+    {
+        let mut failed = st.thumb_failed.lock().unwrap();
+        if let Some(&t) = failed.get(&key) {
+            if crate::now() - t < THUMB_FAIL_TTL {
+                return Err("封面生成失败,请稍后重试".into());
+            }
+            failed.remove(&key);
+        }
+    }
     {
         let mut pending = st.thumb_pending.lock().unwrap();
         if pending.contains(&key) {
@@ -55,6 +67,10 @@ pub async fn ensure_thumb(st: &AppState, share_id: i64, rel: &str, input: &Path)
     }
     let res = gen_thumb(st, input, &out).await;
     st.thumb_pending.lock().unwrap().remove(&key);
+    if let Err(e) = &res {
+        tracing::warn!("封面抽帧失败 ({share_id},{rel}): {e}");
+        st.thumb_failed.lock().unwrap().insert(key, crate::now());
+    }
     res?;
     Ok(out)
 }
@@ -66,24 +82,27 @@ async fn gen_thumb(st: &AppState, input: &Path, out: &Path) -> Result<(), String
     if let Some(dir) = out.parent() {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
-    let status = tokio::process::Command::new(ffmpeg)
-        .args([
-            "-hide_banner", "-loglevel", "error", "-y",
-            "-ss", "1", "-i", &input.to_string_lossy(),
-            "-frames:v", "1", "-q:v", "4",
-            "-vf", &format!("scale='min({THUMB_WIDTH},iw)':-2"),
-            "-pix_fmt", "yuvj420p",
-            &out.to_string_lossy(),
-        ])
-        .output()
-        .await
-        .map_err(|e| format!("ffmpeg 启动失败: {e}"))?;
-    if status.status.success() && out.exists() {
-        Ok(())
-    } else {
+    let mut last_err = String::new();
+    for seek in ["1", "0"] {
+        let status = tokio::process::Command::new(ffmpeg)
+            .args([
+                "-hide_banner", "-loglevel", "error", "-y",
+                "-ss", seek, "-i", &input.to_string_lossy(),
+                "-frames:v", "1", "-q:v", "4",
+                "-vf", &format!("scale='min({THUMB_WIDTH},iw)':-2"),
+                "-pix_fmt", "yuvj420p",
+                &out.to_string_lossy(),
+            ])
+            .output()
+            .await
+            .map_err(|e| format!("ffmpeg 启动失败: {e}"))?;
+        if status.status.success() && out.exists() {
+            return Ok(());
+        }
         let _ = std::fs::remove_file(out);
-        Err(format!("封面抽帧失败: {}", String::from_utf8_lossy(&status.stderr)))
+        last_err = String::from_utf8_lossy(&status.stderr).to_string();
     }
+    Err(format!("封面抽帧失败: {last_err}"))
 }
 
 /// 删除源文件时联动清理:删掉转码记录、落盘产物与封面图。

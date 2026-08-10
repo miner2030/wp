@@ -1,0 +1,9 @@
+# 构建产物
+/target
+
+# 运行期数据(服务器启动时自动生成)
+/wpdata
+/data
+
+# e2e 依赖(运行 bash e2e/run.sh 时自动 npm install)
+/e2e/node_modules
