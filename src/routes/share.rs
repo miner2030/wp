@@ -127,12 +127,14 @@ pub async fn api_share_link_page(State(st): State<AppState>, AxPath(token): AxPa
     let dl = format!("/s/{token}/api/download?dl=1");
     let preview = format!("/s/{token}/api/download");
     let inline = matches!(mime::kind_of(&crate::path::ext_of(&name)), mime::MediaKind::Image | mime::MediaKind::Video | mime::MediaKind::Audio);
+    let esc = html_escape(&name);
+    let dl_svg = r#"<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M12 5v11"/><path d="M7 12l5 5 5-5"/><path d="M5 19h14"/></svg>"#;
+    let preview_svg = r#"<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.4-4.4"/></svg>"#;
     let preview_btn = if inline {
-        format!(r#"<a class="btn primary" href="{preview}">在线预览</a>"#)
+        format!(r#"<a class="btn primary" href="{preview}">{preview_svg}在线预览</a>"#)
     } else {
         String::new()
     };
-    let esc = html_escape(&name);
     let html = format!(
         r#"<!DOCTYPE html>
 <html lang="zh-CN">
@@ -147,7 +149,7 @@ pub async fn api_share_link_page(State(st): State<AppState>, AxPath(token): AxPa
   .name {{ font-size:13px; color:#4f6df5; word-break:break-all; margin-bottom:18px; }}
   .meta {{ font-size:13px; color:#8289a2; margin-bottom:22px; }}
   .btns {{ display:flex; gap:12px; flex-wrap:wrap; }}
-  .btn {{ flex:1; min-width:180px; text-align:center; padding:12px 16px; border-radius:10px; text-decoration:none; font-size:14px; box-sizing:border-box; }}
+  .btn {{ flex:1; min-width:180px; text-align:center; padding:12px 16px; border-radius:10px; text-decoration:none; font-size:14px; box-sizing:border-box; display:inline-flex; align-items:center; justify-content:center; }}
   .btn.primary {{ background:#4f6df5; color:#fff; }}
   .btn.ghost {{ background:#eef1fe; color:#3d5bdd; }}
   .tip {{ margin-top:20px; font-size:12px; color:#9aa3bd; }}
@@ -160,7 +162,7 @@ pub async fn api_share_link_page(State(st): State<AppState>, AxPath(token): AxPa
     <div class="meta">大小 {size_readable} · 该链接无需登录即可访问</div>
     <div class="btns">
       {preview_btn}
-      <a class="btn ghost" href="{dl}">⬇ 下载</a>
+      <a class="btn ghost" href="{dl}">{dl_svg}下载</a>
     </div>
     <div class="tip">由分享者创建,请勿转发给不希望看到此文件的人。</div>
   </div>

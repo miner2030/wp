@@ -97,32 +97,88 @@ function formatTime(ts) {
 }
 
 // ---------------- 文件图标(SVG,按格式分类) ----------------
+// 设计:文件夹带渐变与高光;文件页顶部彩色色带承载类型标签,
+// 主体白色区域承载内容图标。所有渐变 ID 按颜色哈希生成,避免重复。
 
-const FICO_FOLDER = `<svg class="fico" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path d="M10 21.2a3.4 3.4 0 0 1 3.4-3.4h11.6l2.8 3.1h23.8a3.4 3.4 0 0 1 3.4 3.4v1.8H10z" fill="#f59e0b"/><path d="M10 24.6h44v17.2a3.4 3.4 0 0 1-3.4 3.4H13.4a3.4 3.4 0 0 1-3.4-3.4z" fill="#fbbf24"/><path d="M10 32.5h44" stroke="#fcd34d" stroke-width="2"/></svg>`;
-const FICO_IMG = `<circle cx="25" cy="46.6" r="2.5" fill="#fff"/><path d="M19.5 53.4 26.5 46.4 30.8 50.7 34.2 47.3 41 53.4Z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>`;
-const FICO_VID = `<path d="M21 45.6a2 2 0 0 1 2-2h18a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H23a2 2 0 0 1-2-2z" fill="none" stroke="#fff" stroke-width="2"/><path d="M30.2 46.7v5.4l4.6-2.7z" fill="#fff"/>`;
-const FICO_MUS = `<circle cx="28.2" cy="49.7" r="2.9" fill="#fff"/><rect x="29.8" y="43.8" width="2" height="6.4" fill="#fff"/><path d="M31.6 44.1c2.4-.2 4.3 1.2 4.5 3h-4.1z" fill="#fff"/>`;
-const FICO_ZIP = `<rect x="20.5" y="45.6" width="10.5" height="8.8" rx="1.5" fill="none" stroke="#fff" stroke-width="1.8"/><rect x="33" y="45.6" width="10.5" height="8.8" rx="1.5" fill="none" stroke="#fff" stroke-width="1.8"/><rect x="31.1" y="46.5" width="1.8" height="7.2" fill="#fff"/><path d="M33.2 48.8h2.6M33.2 51.6h2.6" stroke="#fff" stroke-width="1.5"/>`;
-const FICO_LINES = `<path d="M21 47.7h24M21 51.4h17" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>`;
+function _gId(p) { return "g" + p.replace(/[^a-z0-9]/gi, ""); }
 
-function ficoPage(color, tag, glyph) {
-  const longTag = tag && tag.length > 2;
-  const label = tag
-    ? `<text x="32" y="${longTag ? 50.5 : 51.3}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="${longTag ? 8 : 11.5}" fill="#fff" letter-spacing="0.4">${tag}</text>`
-    : (glyph || "");
-  return `<svg class="fico" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path d="M15 5h24l10 10v44a2 2 0 0 1-2 2H15a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" fill="#fff" stroke="#d9dfee" stroke-width="1.6"/><path d="M39 5v10h10z" fill="#eef1fb" stroke="#d9dfee" stroke-width="1.2"/><rect x="16" y="42.5" width="32" height="11.5" rx="3" fill="${color}"/>${label}</svg>`;
+// 垂直渐变(从 c1 顶部 → c2 底部),基于对象边界框,适合任何尺寸
+function _linear(id, c1, c2) {
+  return `<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient>`;
 }
 
+// 文件夹图标:渐变主体 + 顶部高光 + 底部阴影 + 标签前片
+const FICO_FOLDER = (() => {
+  const id = _gId("folderBody");
+  const idTab = _gId("folderTab");
+  return `<svg class="fico" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+    <defs>${_linear(id, "#ffd47a", "#f59e0b")}${_linear(idTab, "#ffce7a", "#e88808")}</defs>
+    <path d="M7 15a3 3 0 0 1 3-3h11.5a3 3 0 0 1 2.2 1.5l3 3.5H54a3 3 0 0 1 3 3v3.5H7z" fill="url(#${idTab})"/>
+    <path d="M7 21h50a3 3 0 0 1 3 3v26a3 3 0 0 1-3 3H10a3 3 0 0 1-3-3z" fill="url(#${id})"/>
+    <path d="M7 21h50v2.4H7z" fill="rgba(255,255,255,.45)"/>
+    <path d="M7 49.6h50a3 3 0 0 1-3 3H10a3 3 0 0 1-3-3z" fill="rgba(120,53,0,.12)"/>
+  </svg>`;
+})();
+
+// 文件页模板:白色页身 + 折角 + 顶部彩色色带(承载标签) + 主体区域(承载 glyph)
+function ficoPage(cTop, cBottom, tag, glyph) {
+  cBottom = cBottom || cTop;
+  const gid = _gId(cTop + cBottom);
+  const longTag = tag && tag.length > 3;
+  const fontSize = longTag ? 8.2 : 11;
+  const label = tag
+    ? `<text x="32" y="20.2" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="${fontSize}" fill="#fff" letter-spacing="0.6">${tag}</text>`
+    : "";
+  const body = glyph || "";
+  return `<svg class="fico" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+    <defs>${_linear(gid, cTop, cBottom)}</defs>
+    <path d="M14 6h25l11 11v40a2 2 0 0 1-2 2H14a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z" fill="#fff" stroke="#dbe1f0" stroke-width="1.3"/>
+    <path d="M39 6v11h11z" fill="#f0f3fb" stroke="#dbe1f0" stroke-width="1.3" stroke-linejoin="round"/>
+    <path d="M14 6h25l11 11v6H12V8a2 2 0 0 1 2-2z" fill="url(#${gid})"/>
+    <path d="M39 6v6a2 2 0 0 0 2 2h9" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.1"/>
+    ${label}
+    ${body}
+  </svg>`;
+}
+
+// 主体区域图标(白色背景上绘制,色彩柔和,与色带形成对比)
+const FICO_IMG = `<rect x="19" y="28" width="26" height="22" rx="3" fill="none" stroke="#a5b4fc" stroke-width="2"/><circle cx="26" cy="35" r="2.6" fill="#a5b4fc"/><path d="M21 47l6-6 4.5 4.5 4-3.5 8 8" fill="none" stroke="#a5b4fc" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+const FICO_VID = `<rect x="19" y="29" width="26" height="20" rx="3" fill="none" stroke="#c4b5fd" stroke-width="2"/><path d="M29 35.5v7l6-3.5z" fill="#c4b5fd"/>`;
+const FICO_MUS = `<path d="M30 32v12" stroke="#5eead4" stroke-width="2.4" stroke-linecap="round" fill="none"/><path d="M30 32c4.5-1.2 7 1 7 4.2" fill="none" stroke="#5eead4" stroke-width="2.4" stroke-linecap="round"/><ellipse cx="26.5" cy="44.5" rx="3.5" ry="2.5" fill="#5eead4"/>`;
+const FICO_ZIP = `<rect x="21" y="28" width="22" height="22" rx="2.5" fill="none" stroke="#fcd34d" stroke-width="2"/><path d="M32 28v22" stroke="#fcd34d" stroke-width="2"/><path d="M32 32.5h3.2M32 37h3.2M32 41.5h3.2" stroke="#fcd34d" stroke-width="1.8" stroke-linecap="round"/><rect x="30.5" y="29" width="3" height="3" fill="#fcd34d"/>`;
+const FICO_LINES = `<path d="M20 33h24M20 38h24M20 43h15" stroke="#94a3b8" stroke-width="2.4" stroke-linecap="round"/>`;
+const FICO_MD = `<path d="M22 47V32l6 6 6-6v15" fill="none" stroke="#a5b4fc" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/><path d="M38 36l3.5 3.5L38 43" fill="none" stroke="#a5b4fc" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`;
+const FICO_JSON = `<path d="M27 32c-2.4 0-3.6 1.4-3.6 3.6v2.8c0 1.6-.8 2.4-2.4 2.4 1.6 0 2.4.8 2.4 2.4v2.8c0 2.2 1.2 3.6 3.6 3.6" fill="none" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round"/><path d="M37 32c2.4 0 3.6 1.4 3.6 3.6v2.8c0 1.6.8 2.4 2.4 2.4-1.6 0-2.4.8-2.4 2.4v2.8c0 2.2-1.2 3.6-3.6 3.6" fill="none" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round"/>`;
+const FICO_YAML = `<circle cx="27" cy="38" r="4.5" fill="none" stroke="#67e8f9" stroke-width="2.2"/><path d="M30.3 41.3l8.2 8.2" stroke="#67e8f9" stroke-width="2.4" stroke-linecap="round"/>`;
+const FICO_SHELL = `<rect x="19" y="29" width="26" height="18" rx="2.5" fill="none" stroke="#86efac" stroke-width="2"/><path d="M24.5 39l4-3.2-4-3.2" fill="none" stroke="#86efac" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M33 40.5h6.5" stroke="#86efac" stroke-width="2.2" stroke-linecap="round"/>`;
+const FICO_PY = `<path d="M28 29h7a3 3 0 0 1 3 3v6h-10a3 3 0 0 0-3 3v3a3 3 0 0 0 3 3" fill="none" stroke="#93c5fd" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 49h-7a3 3 0 0 1-3-3v-6h10a3 3 0 0 0 3-3v-3a3 3 0 0 0-3-3" fill="none" stroke="#fcd34d" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="31" cy="32" r="1" fill="#93c5fd"/><circle cx="33" cy="46" r="1" fill="#fcd34d"/>`;
+const FICO_HTML = `<path d="M25 32l-4.5 5 4.5 5" fill="none" stroke="#fdba74" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M39 32l4.5 5-4.5 5" fill="none" stroke="#fdba74" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M35 30l-6 14" stroke="#fdba74" stroke-width="2.4" stroke-linecap="round"/>`;
+const FICO_SQL = `<ellipse cx="32" cy="33" rx="8.5" ry="2.8" fill="none" stroke="#7dd3fc" stroke-width="2"/><path d="M23.5 33v10.5c0 1.6 3.8 2.8 8.5 2.8s8.5-1.2 8.5-2.8V33" fill="none" stroke="#7dd3fc" stroke-width="2"/><path d="M23.5 38.2c0 1.6 3.8 2.8 8.5 2.8s8.5-1.2 8.5-2.8" fill="none" stroke="#7dd3fc" stroke-width="1.6" opacity=".55"/>`;
+
 const FICO_GROUPS = [
-  [["pdf"], ficoPage("#ef4444", "PDF")],
-  [["doc", "docx", "docm", "odt", "rtf"], ficoPage("#2563eb", "W")],
-  [["xls", "xlsx", "xlsm", "ods", "csv", "tsv"], ficoPage("#16a34a", "X")],
-  [["ppt", "pptx", "odp"], ficoPage("#ea580c", "P")],
-  [["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "avif", "ico", "tif", "tiff", "heic"], ficoPage("#8b5cf6", null, FICO_IMG)],
-  [["mp4", "m4v", "webm", "ogv", "mov", "avi", "mkv", "flv", "wmv", "mpg", "mpeg", "ts", "3gp", "m2ts", "m2ts"], ficoPage("#7c3aed", null, FICO_VID)],
-  [["mp3", "wav", "ogg", "oga", "flac", "m4a", "aac", "opus", "wma", "amr"], ficoPage("#0d9488", null, FICO_MUS)],
-  [["zip", "rar", "7z", "tar", "gz", "bz2", "xz", "iso"], ficoPage("#d97706", null, FICO_ZIP)],
-  [["txt", "log", "md", "markdown", "json", "yaml", "yml", "ini", "conf", "toml", "sh", "bash", "py", "js", "mjs", "ts", "html", "htm", "css", "xml", "sql", "properties", "env"], ficoPage("#64748b", null, FICO_LINES)],
+  // 文档类(色带 + 标签)
+  [["pdf"], ficoPage("#f87171", "#ef4444", "PDF")],
+  [["doc", "docx", "docm", "odt", "rtf"], ficoPage("#60a5fa", "#2563eb", "DOC")],
+  [["xls", "xlsx", "xlsm", "ods", "csv", "tsv"], ficoPage("#4ade80", "#16a34a", "XLS")],
+  [["ppt", "pptx", "odp"], ficoPage("#fb923c", "#ea580c", "PPT")],
+  // 媒体类(色带标签 + 主体图标)
+  [["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "avif", "ico", "tif", "tiff", "heic"], ficoPage("#a78bfa", "#8b5cf6", "IMG", FICO_IMG)],
+  [["mp4", "m4v", "webm", "ogv", "mov", "avi", "mkv", "flv", "wmv", "mpg", "mpeg", "ts", "3gp", "m2ts"], ficoPage("#a78bfa", "#7c3aed", "VID", FICO_VID)],
+  [["mp3", "wav", "ogg", "oga", "flac", "m4a", "aac", "opus", "wma", "amr"], ficoPage("#2dd4bf", "#0d9488", "MP3", FICO_MUS)],
+  [["zip", "rar", "7z", "tar", "gz", "bz2", "xz", "iso"], ficoPage("#fbbf24", "#d97706", "ZIP", FICO_ZIP)],
+  // 文本 / 代码类
+  [["txt", "log", "ini", "cfg", "conf", "toml", "properties", "env"], ficoPage("#94a3b8", "#64748b", "TXT", FICO_LINES)],
+  [["md", "markdown"], ficoPage("#a78bfa", "#6d28d9", "MD", FICO_MD)],
+  [["json"], ficoPage("#fbbf24", "#ca8a04", "JSON", FICO_JSON)],
+  [["yaml", "yml"], ficoPage("#22d3ee", "#0891b2", "YML", FICO_YAML)],
+  [["sh", "bash", "zsh", "fish"], ficoPage("#34d399", "#059669", "SH", FICO_SHELL)],
+  [["py", "pyw", "pyi", "ipynb"], ficoPage("#60a5fa", "#2563eb", "PY", FICO_PY)],
+  [["js", "mjs", "cjs"], ficoPage("#fbbf24", "#ca8a04", "JS")],
+  [["ts", "tsx"], ficoPage("#60a5fa", "#2563eb", "TS")],
+  [["html", "htm"], ficoPage("#fb923c", "#ea580c", "HTML", FICO_HTML)],
+  [["css", "scss", "sass", "less"], ficoPage("#38bdf8", "#0284c7", "CSS")],
+  [["xml", "xsl", "xsd"], ficoPage("#94a3b8", "#64748b", "XML")],
+  [["sql", "db", "sqlite", "sqlite3"], ficoPage("#38bdf8", "#0284c7", "SQL", FICO_SQL)],
 ];
 
 function fileIco(x) {
@@ -131,18 +187,121 @@ function fileIco(x) {
   for (const [exts, svg] of FICO_GROUPS) {
     if (exts.includes(e)) return svg;
   }
-  return ficoPage("#9ca3af", "");
+  return ficoPage("#cbd5e1", "#9ca3af", "FILE");
 }
 
 function kindOf(x) {
   if (x.is_dir) return "dir";
-  const e = x.ext;
-  if (["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "avif", "ico"].includes(e)) return "image";
+  const e = (x.ext || "").toLowerCase();
+  if (["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "avif", "ico", "tif", "tiff", "heic"].includes(e)) return "image";
   if (["mp4", "m4v", "webm", "ogv", "mov", "avi", "mkv", "flv", "wmv", "mpg", "mpeg", "ts", "3gp", "m2ts"].includes(e)) return "video";
-  if (["mp3", "wav", "ogg", "oga", "flac", "m4a", "aac", "opus", "wma"].includes(e)) return "audio";
-  if (["zip", "rar", "7z", "tar", "gz", "bz2", "xz"].includes(e)) return "archive";
+  if (["mp3", "wav", "ogg", "oga", "flac", "m4a", "aac", "opus", "wma", "amr"].includes(e)) return "audio";
+  if (["zip", "rar", "7z", "tar", "gz", "bz2", "xz", "iso"].includes(e)) return "archive";
   return "doc";
 }
+
+// ---------------- 通用 UI 图标(线性 SVG,继承 currentColor) ----------------
+// 通过 .ui-ico 类控制大小,通过父元素 color 控制颜色,与主题/状态自适应
+const ICN = {
+  folder: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h3.5l2 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`,
+  folderOpen: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h3.5l2 2H19a2 2 0 0 1 2 2v1H3z"/><path d="M3 9h18l-2 9a2 2 0 0 1-2 1.5H5a2 2 0 0 1-2-1.5z"/></svg>`,
+  file: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>`,
+  image: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="M4 18l5-5 4 4 3-3 4 4"/></svg>`,
+  video: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10 9v6l5-3z"/></svg>`,
+  audio: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5v14"/><path d="M11 5c4 0 6 2.2 6 5"/><circle cx="8" cy="19" r="3"/></svg>`,
+  archive: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1.2"/><path d="M5 9v11h14V9"/><path d="M12 13v3"/></svg>`,
+  search: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.4-4.4"/></svg>`,
+  upload: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V5"/><path d="M7 10l5-5 5 5"/><path d="M5 19h14"/></svg>`,
+  download: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v11"/><path d="M7 12l5 5 5-5"/><path d="M5 19h14"/></svg>`,
+  share: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6"/></svg>`,
+  link: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14a4 4 0 0 0 5.5 0l3-3a4 4 0 0 0-5.5-5.5l-1 1"/><path d="M15 10a4 4 0 0 0-5.5 0l-3 3a4 4 0 0 0 5.5 5.5l1-1"/></svg>`,
+  copy: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>`,
+  edit: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4l4 4-10 10H6v-4z"/><path d="M14 6l4 4"/></svg>`,
+  trash: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M10 4h4"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></svg>`,
+  refresh: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 14-5.3L21 9"/><path d="M20 12a8 8 0 0 1-14 5.3L3 15"/><path d="M21 4v5h-5M3 20v-5h5"/></svg>`,
+  plus: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`,
+  lock: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10" width="15" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>`,
+  unlock: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10" width="15" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.5-2"/></svg>`,
+  key: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="4"/><path d="M11 11l9 9M16 16l2-2M14 14l2-2"/></svg>`,
+  user: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>`,
+  users: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 21c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7"/><path d="M17.5 15c2.5.5 4 2.8 4 6"/></svg>`,
+  gear: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.2-1.6l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2.7-1.6l-.4-2.5h-4l-.4 2.5a7 7 0 0 0-2.7 1.6l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 3.2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2.7 1.6l.4 2.5h4l.4-2.5a7 7 0 0 0 2.7-1.6l2.3 1 2-3.4-2-1.5a7 7 0 0 0 .2-1.6z"/></svg>`,
+  home: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1z"/></svg>`,
+  grid: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg>`,
+  list: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1.2" fill="currentColor" stroke="none"/><circle cx="3.5" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="3.5" cy="18" r="1.2" fill="currentColor" stroke="none"/></svg>`,
+  save: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11l3 3v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M8 4v5h7"/><path d="M8 14h8v6H8z"/></svg>`,
+  close: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>`,
+  back: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M11 18l-6-6 6-6"/></svg>`,
+  up: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>`,
+  chevL: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 6l-6 6 6 6"/></svg>`,
+  chevR: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6l6 6-6 6"/></svg>`,
+  chevUp: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14l6-6 6 6"/></svg>`,
+  chevDn: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 10l6 6 6-6"/></svg>`,
+  check: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>`,
+  info: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.5"/></svg>`,
+  warn: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 16H3z"/><path d="M12 9v5M12 17v.5"/></svg>`,
+  shield: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3 7.5-8 9-5-1.5-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>`,
+  database: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="2.5"/><path d="M4 5v14c0 1.5 3.5 2.5 8 2.5s8-1 8-2.5V5"/><path d="M4 12c0 1.5 3.5 2.5 8 2.5s8-1 8-2.5"/></svg>`,
+  cert: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="14" rx="2"/><circle cx="9" cy="9" r="2.5"/><path d="M14 7h3M14 11h3"/><path d="M9 17l3 4 3-4"/></svg>`,
+  logout: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M3 12h12"/><path d="M11 8l4 4-4 4"/></svg>`,
+  login: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="M11 12h12"/><path d="M17 8l4 4-4 4"/></svg>`,
+  sun: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1l2.1-2.1M17 7l2.1-2.1"/></svg>`,
+  moon: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4 6 6 0 1 0 20 14.5z"/></svg>`,
+  auto: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor" stroke="none"/></svg>`,
+  shieldCheck: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3 7.5-8 9-5-1.5-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>`,
+  cloudUp: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 14a4 4 0 0 1 .6-7.9 5 5 0 0 1 9.4 1.4A3.5 3.5 0 0 1 16 17"/><path d="M12 19v-7M9 13l3-3 3 3"/></svg>`,
+  play: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M10 8v8l7-4z" fill="currentColor" stroke="none"/></svg>`,
+  bolt: `<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-2 8 9-12h-7z"/></svg>`,
+};
+
+// ---------------- 主题切换(浅色 / 深色 / 自动跟随系统) ----------------
+const THEME_KEY = "wp_theme";
+
+function getSystemTheme() {
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function applyTheme(pref) {
+  // pref: "light" | "dark" | "auto"
+  const actual = pref === "auto" ? getSystemTheme() : pref;
+  document.documentElement.setAttribute("data-theme", actual);
+  try { localStorage.setItem(THEME_KEY, pref); } catch (e) {}
+  document.querySelectorAll(".theme-switch .ts-btn").forEach((b) => {
+    b.classList.toggle("active", b.dataset.ts === pref);
+  });
+}
+
+function initTheme() {
+  const pref = (() => { try { return localStorage.getItem(THEME_KEY) || "auto"; } catch (e) { return "auto"; } })();
+  applyTheme(pref);
+  if (window.matchMedia) {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const fn = () => {
+      const cur = (() => { try { return localStorage.getItem(THEME_KEY) || "auto"; } catch (e) { return "auto"; } })();
+      if (cur === "auto") applyTheme("auto");
+    };
+    if (mq.addEventListener) mq.addEventListener("change", fn);
+    else if (mq.addListener) mq.addListener(fn);
+  }
+}
+
+function themeSwitcher() {
+  const cur = (() => { try { return localStorage.getItem(THEME_KEY) || "auto"; } catch (e) { return "auto"; } })();
+  return `<div class="theme-switch" title="切换主题">
+    <button class="ts-btn ${cur === "light" ? "active" : ""}" data-ts="light" title="浅色" type="button">${ICN.sun}</button>
+    <button class="ts-btn ${cur === "dark" ? "active" : ""}" data-ts="dark" title="深色" type="button">${ICN.moon}</button>
+    <button class="ts-btn ${cur === "auto" ? "active" : ""}" data-ts="auto" title="跟随系统" type="button">${ICN.auto}</button>
+  </div>`;
+}
+
+function bindThemeSwitcher(root) {
+  (root || document).querySelectorAll(".theme-switch .ts-btn").forEach((b) => {
+    b.onclick = () => applyTheme(b.dataset.ts);
+  });
+}
+
+// 在 DOMContentLoaded 之前已由 index.html 内联脚本设置 data-theme;这里再监听系统变化
+initTheme();
 
 function accessName(a) {
   if (a === "guest") return "游客可访问";
@@ -216,28 +375,70 @@ async function copyText(text, okMsg) {
 
 function renderLogin() {
   document.getElementById("app").innerHTML = `
-    <div class="login-wrap">
-      <div class="login-card">
-        <div class="login-logo">云</div>
-        <h1>云盘</h1>
-        <div class="sub">多用户 · 断点续传 · 在线播放 · 安全分享</div>
-        <label>用户名</label>
-        <div class="fld"><span class="f-ico">👤</span><input id="in-user" placeholder="请输入用户名" autocomplete="username"></div>
-        <label>密码</label>
-        <div class="fld"><span class="f-ico">🔒</span><input id="in-pass" type="password" placeholder="请输入密码" autocomplete="current-password"></div>
-        <label>验证码</label>
-        <div class="fld"><span class="f-ico">🗝️</span><input id="in-captcha" placeholder="输入右侧字符" maxlength="4" autocomplete="off"></div>
-        <div class="captcha-row">
-          <img id="cap-img" alt="验证码" title="看不清?点击刷新">
-          <input type="hidden" id="cap-id">
-          <button type="button" class="btn mini" id="cap-refresh">换一张</button>
+    <div class="login-page">
+      <div class="bg-orb o1"></div><div class="bg-orb o2"></div><div class="bg-orb o3"></div>
+      <aside class="login-hero">
+        <div class="hero-top">
+          <span class="hero-mark">云</span>
+          <span class="hero-brand">云盘 · WebDisk</span>
         </div>
-        <button class="btn full" id="btn-login">登 录</button>
-        <div class="err" id="login-err"></div>
-      </div>
+        <div class="hero-mid">
+          <h2 class="hero-title">你的随身<br><span class="accent">数字空间</span></h2>
+          <p class="hero-sub">多用户网盘,支持分片断点上传、在线转码播放、目录级权限控制与安全分享链接。无论是个人备份还是团队协作,都能轻松应对。</p>
+          <div class="features">
+            <div class="feature"><span class="fic">${ICN.cloudUp}</span><span><b>断点续传</b><span class="fdesc">大文件分片上传,中断可续传</span></span></div>
+            <div class="feature"><span class="fic">${ICN.play}</span><span><b>在线播放</b><span class="fdesc">视频音频直接预览,无需下载</span></span></div>
+            <div class="feature"><span class="fic">${ICN.link}</span><span><b>安全分享</b><span class="fdesc">随机 token 链接,带访问统计</span></span></div>
+            <div class="feature"><span class="fic">${ICN.shieldCheck}</span><span><b>权限控制</b><span class="fdesc">按目录设定游客/登录/管理员</span></span></div>
+          </div>
+        </div>
+        <div class="hero-foot">© ${new Date().getFullYear()} 云盘 WebDisk · 基于 Rust / axum 构建</div>
+      </aside>
+      <main class="login-side">
+        <div class="side-top">${themeSwitcher()}</div>
+        <div class="side-mid">
+          <div class="login-card">
+            <div class="login-logo">云</div>
+            <h1>欢迎回来</h1>
+            <div class="sub">登录以继续访问你的文件</div>
+            <label>用户名</label>
+            <div class="fld"><span class="f-ico">${ICN.user}</span><input id="in-user" placeholder="请输入用户名" autocomplete="username"></div>
+            <label>密码</label>
+            <div class="fld"><span class="f-ico">${ICN.lock}</span><input id="in-pass" type="password" placeholder="请输入密码" autocomplete="current-password"></div>
+            <label>验证码</label>
+            <div class="fld"><span class="f-ico">${ICN.key}</span><input id="in-captcha" placeholder="输入右侧字符" maxlength="4" autocomplete="off"></div>
+            <div class="captcha-row">
+              <img id="cap-img" alt="验证码" title="看不清?点击刷新">
+              <input type="hidden" id="cap-id">
+              <button type="button" class="btn mini" id="cap-refresh">换一张</button>
+            </div>
+            <div class="login-actions">
+              <button class="btn full" id="btn-login">${ICN.login}登录</button>
+              <div class="divider">或</div>
+              <button class="guest-link" id="btn-guest" type="button">以游客身份浏览公开目录</button>
+            </div>
+            <div class="err" id="login-err"></div>
+          </div>
+        </div>
+      </main>
     </div>`;
   loadCaptcha();
+  bindThemeSwitcher(document);
   document.getElementById("btn-login").onclick = doLogin;
+  const guestBtn = document.getElementById("btn-guest");
+  if (guestBtn) guestBtn.onclick = async () => {
+    try {
+      const r = await api("GET", "/api/shares");
+      if (r.shares && r.shares.length) {
+        state.shares = r.shares;
+        state.share = state.shares[0];
+        state.path = "";
+        render();
+      } else {
+        toast("暂无可供游客访问的目录");
+      }
+    } catch (e) { toast(e.message); }
+  };
   document.getElementById("in-captcha").addEventListener("keydown", (e) => {
     if (e.key === "Enter") doLogin();
   });
@@ -354,9 +555,10 @@ function render() {
           ${state.user ? esc(state.user.username) : "游客模式"}
         </span>
         <div class="foot-btns">
-          ${state.user && state.user.is_admin ? '<button class="btn mini ghost" id="btn-admin">⚙ 管理后台</button>' : ""}
-          ${state.user ? '<button class="btn mini ghost" id="btn-logout">退出</button>' : '<button class="btn mini ghost" id="btn-login2">登 录</button>'}
+          ${state.user && state.user.is_admin ? '<button class="btn mini ghost" id="btn-admin">' + ICN.gear + '管理后台</button>' : ""}
+          ${state.user ? '<button class="btn mini ghost" id="btn-logout">' + ICN.logout + '退出</button>' : '<button class="btn mini ghost" id="btn-login2">' + ICN.login + '登录</button>'}
         </div>
+        <div class="foot-theme" id="foot-theme"></div>
       </div>
     </div>
     <div class="main">
@@ -372,6 +574,8 @@ function render() {
   if (l2) l2.onclick = renderLogin;
   const ab = document.getElementById("btn-admin");
   if (ab) ab.onclick = () => renderAdmin();
+  const ft = document.getElementById("foot-theme");
+  if (ft) { ft.innerHTML = themeSwitcher(); bindThemeSwitcher(ft); }
   renderShareList();
   loadFiles();
   bindDropUpload();
@@ -387,7 +591,7 @@ function renderShareList() {
     .map(
       (s) => `
       <div class="share-item ${state.share && state.share.id === s.id ? "active" : ""}" data-share="${s.id}">
-        <span class="ico">${s.kind === "home" ? "🏠" : "📂"}</span>
+        <span class="ico">${s.kind === "home" ? ICN.home : ICN.folder}</span>
         <span>${esc(s.name)}</span>
         <span class="share-badge">${s.kind === "home" ? "我的" : accessName(s.access)}</span>
       </div>`
@@ -421,8 +625,8 @@ function renderToolbar() {
     <input id="Fsearch" class="search-box" placeholder="搜索当前文件夹…" value="${esc(state.filter)}">
     <div class="spacer"></div>
     <div class="view-switch" title="切换视图">
-      <button class="btn mini ghost view-btn ${state.view === "grid" ? "active" : ""}" data-view="grid">▦</button>
-      <button class="btn mini ghost view-btn ${state.view === "list" ? "active" : ""}" data-view="list">☰</button>
+      <button class="btn mini ghost view-btn ${state.view === "grid" ? "active" : ""}" data-view="grid">${ICN.grid}</button>
+      <button class="btn mini ghost view-btn ${state.view === "list" ? "active" : ""}" data-view="list">${ICN.list}</button>
     </div>
     <select id="sort-by" class="sort-select" title="排序">
       <option value="name" ${state.sort === "name" ? "selected" : ""}>按名称</option>
@@ -430,10 +634,10 @@ function renderToolbar() {
       <option value="mtime" ${state.sort === "mtime" ? "selected" : ""}>按修改时间</option>
       <option value="kind" ${state.sort === "kind" ? "selected" : ""}>按类型</option>
     </select>
-    ${can.mkdir ? '<button class="btn ghost mini" id="btn-mkdir">＋ 新建文件夹</button>' : ""}
-    ${can.upload ? '<button class="btn btn-upload" id="btn-upload">⬆ 上传文件</button><input type="file" id="file-input" multiple style="display:none">' : ""}
-    ${adm ? '<button class="btn mini ghost" id="btn-perm">🔐 权限</button>' : ""}
-    <button class="btn mini ghost" id="btn-refresh" title="刷新">↻</button>`;
+    ${can.mkdir ? '<button class="btn ghost mini" id="btn-mkdir">' + ICN.plus + '新建文件夹</button>' : ""}
+    ${can.upload ? '<button class="btn btn-upload" id="btn-upload">' + ICN.upload + '上传文件</button><input type="file" id="file-input" multiple style="display:none">' : ""}
+    ${adm ? '<button class="btn mini ghost" id="btn-perm">' + ICN.lock + '权限</button>' : ""}
+    <button class="btn mini ghost" id="btn-refresh" title="刷新">${ICN.refresh}</button>`;
   document.querySelectorAll(".crumbs").forEach((a) => {
     a.onclick = (e) => {
       e.preventDefault();
@@ -519,7 +723,7 @@ async function loadFiles() {
   const el = document.getElementById("files");
   clearSelection();
   if (!s) {
-    el.innerHTML = '<div class="empty"><span class="empty-ico">🗂️</span>没有可访问的空间</div>';
+    el.innerHTML = '<div class="empty"><span class="empty-ico">' + ICN.folder + '</span>没有可访问的空间</div>';
     return;
   }
   el.innerHTML = '<div class="center"><div class="spinner"></div></div>';
@@ -562,9 +766,9 @@ function renderFiles(entries) {
   const shown = filterEntries(entries);
   if (!shown.length) {
     if (state.filter) {
-      el.innerHTML = `<div class="empty"><span class="empty-ico">🔍</span><div>未找到与 <b style="color:var(--primary)">${esc(state.filter)}</b> 相关的文件</div></div>`;
+      el.innerHTML = `<div class="empty"><span class="empty-ico">${ICN.search}</span><div>未找到与 <b style="color:var(--primary)">${esc(state.filter)}</b> 相关的文件</div></div>`;
     } else {
-      el.innerHTML = '<div class="empty"><span class="empty-ico">📁</span>空文件夹</div>';
+      el.innerHTML = '<div class="empty"><span class="empty-ico">' + ICN.folder + '</span>空文件夹</div>';
     }
     return;
   }
@@ -579,9 +783,9 @@ function renderFiles(entries) {
         <td class="fname"><label class="sel-cb"><input type="checkbox" class="sel-in"></label><span class="f-ico">${fileIco(x)}</span><span>${esc(x.name)}</span></td>
         <td>${x.is_dir ? "—" : formatSize(x.size)}</td>
         <td class="fdate">${formatTime(x.mtime)}</td>
-        <td><span class="ftr-acts">${!x.is_dir && state.can.download ? `<button class="btn mini ghost" data-qdl="${esc(x.name)}" title="下载">⬇</button>` : ""}
-        ${!x.is_dir && state.user ? `<button class="btn mini ghost" data-qshare="${esc(x.name)}" title="分享">🔗</button>` : ""}
-        ${state.can.delete ? `<button class="btn mini ghost" data-qdel="${esc(x.name)}" title="删除">✕</button>` : ""}</span></td>
+        <td><span class="ftr-acts">${!x.is_dir && state.can.download ? `<button class="btn mini ghost" data-qdl="${esc(x.name)}" title="下载">${ICN.download}</button>` : ""}
+        ${!x.is_dir && state.user ? `<button class="btn mini ghost" data-qshare="${esc(x.name)}" title="分享">${ICN.share}</button>` : ""}
+        ${state.can.delete ? `<button class="btn mini ghost" data-qdel="${esc(x.name)}" title="删除">${ICN.trash}</button>` : ""}</span></td>
       </tr>`
         )
         .join("")}
@@ -605,8 +809,8 @@ function renderFiles(entries) {
       return `<div class="tile ${kc}" data-name="${esc(x.name)}" data-isdir="${x.is_dir ? 1 : 0}" data-kind="${esc(x.kind || "other")}">
         <label class="sel-cb"><input type="checkbox" class="sel-in"></label>
         <div class="tile-acts">
-          ${!x.is_dir && state.can.download ? `<button class="tile-act" data-qdl="${esc(x.name)}" title="下载">⬇</button>` : ""}
-          ${!x.is_dir && state.user ? `<button class="tile-act" data-qshare="${esc(x.name)}" title="分享">🔗</button>` : ""}
+          ${!x.is_dir && state.can.download ? `<button class="tile-act" data-qdl="${esc(x.name)}" title="下载">${ICN.download}</button>` : ""}
+          ${!x.is_dir && state.user ? `<button class="tile-act" data-qshare="${esc(x.name)}" title="分享">${ICN.share}</button>` : ""}
         </div>
         ${thumb}
         <div class="tname" title="${esc(x.name)}">${esc(x.name)}</div>
@@ -690,12 +894,12 @@ function renderSelectionBar() {
   el.innerHTML = `
     <span class="sb-count">已选 <b>${n}</b> 项</span>
     <span class="sel-sep"></span>
-    ${one ? '<button class="btn mini" id="sb-open">📂 打开</button>' : ""}
-    ${can.download ? `<button class="btn mini" id="sb-dl">⬇ 下载</button>
-    <button class="btn mini ghost" id="sb-link">🔗 复制下载链接</button>` : ""}
-    ${one && !state.selDir.has(one) && state.user ? '<button class="btn mini ghost" id="sb-share">🔗 分享</button>' : ""}
-    ${can.delete ? `<button class="btn mini ghost" id="sb-rn"${one ? "" : ' disabled'} title="重命名">✏ 重命名</button>
-    <button class="btn mini danger" id="sb-del">🗑 删除</button>` : ""}
+    ${one ? '<button class="btn mini" id="sb-open">' + ICN.folderOpen + '打开</button>' : ""}
+    ${can.download ? `<button class="btn mini" id="sb-dl">${ICN.download}下载</button>
+    <button class="btn mini ghost" id="sb-link">${ICN.link}复制下载链接</button>` : ""}
+    ${one && !state.selDir.has(one) && state.user ? '<button class="btn mini ghost" id="sb-share">' + ICN.share + '分享</button>' : ""}
+    ${can.delete ? `<button class="btn mini ghost" id="sb-rn"${one ? "" : ' disabled'} title="重命名">${ICN.edit}重命名</button>
+    <button class="btn mini danger" id="sb-del">${ICN.trash}删除</button>` : ""}
     <button class="btn mini" id="sb-clear" style="background:transparent;color:var(--muted);box-shadow:none;border:none">取消选择</button>`;
   el.querySelector("#sb-clear").onclick = clearSelection;
   const op = el.querySelector("#sb-open");
@@ -770,16 +974,16 @@ document.addEventListener("contextmenu", (ev) => {
   const isdir = item.dataset.isdir === "1";
   const kind = item.dataset.kind;
   const items = [];
-  items.push({ icon: "📂", label: "打开", act: () => openItem(name, isdir, kind) });
+  items.push({ icon: ICN.folderOpen, label: "打开", act: () => openItem(name, isdir, kind) });
   if (!isdir) {
-    if (state.can.download) items.push({ icon: "⬇", label: "下载", act: () => download(state.share.id, childPath(name), name) });
-    if (state.user) items.push({ icon: "🔗", label: "分享链接", act: () => shareModal(state.share.id, childPath(name), name) });
-    if (state.can.download) items.push({ icon: "📋", label: "复制下载链接", act: () => copyTicketUrl(state.share.id, childPath(name)) });
+    if (state.can.download) items.push({ icon: ICN.download, label: "下载", act: () => download(state.share.id, childPath(name), name) });
+    if (state.user) items.push({ icon: ICN.share, label: "分享链接", act: () => shareModal(state.share.id, childPath(name), name) });
+    if (state.can.download) items.push({ icon: ICN.link, label: "复制下载链接", act: () => copyTicketUrl(state.share.id, childPath(name)) });
   }
   if (state.can.delete) {
     items.push({ sep: true });
-    items.push({ icon: "✏", label: "重命名", act: () => renameModal(name) });
-    items.push({ icon: "🗑", label: "删除", act: () => deleteModal([name]) });
+    items.push({ icon: ICN.edit, label: "重命名", act: () => renameModal(name) });
+    items.push({ icon: ICN.trash, label: "删除", act: () => deleteModal([name]) });
   }
   openCtxAt(ev, items);
 });
@@ -788,9 +992,9 @@ document.addEventListener("contextmenu", (ev) => {
   if (itemOf(ev) || ev.target.closest(".sel-cb")) return;
   ev.preventDefault();
   const items = [];
-  if (state.can.upload) items.push({ icon: "⬆", label: "上传文件到当前目录", act: () => { const i = ensureFileInput(); i.click(); } });
-  if (state.can.mkdir) items.push({ icon: "＋", label: "新建文件夹", act: mkdirModal });
-  items.push({ icon: "↻", label: "刷新", act: loadFiles });
+  if (state.can.upload) items.push({ icon: ICN.upload, label: "上传文件到当前目录", act: () => { const i = ensureFileInput(); i.click(); } });
+  if (state.can.mkdir) items.push({ icon: ICN.plus, label: "新建文件夹", act: mkdirModal });
+  items.push({ icon: ICN.refresh, label: "刷新", act: loadFiles });
   if (items.length) openCtxAt(ev, items);
 });
 
@@ -828,7 +1032,7 @@ document.addEventListener("scroll", closeCtxMenu, true);
 function openModal(html, cls) {
   const mask = document.createElement("div");
   mask.className = "modal-mask";
-  mask.innerHTML = `<div class="modal${cls ? " " + cls : ""}"><div class="mhead"><span class="mt">预览</span><span class="close" data-close="1">×</span></div>${html}</div>`;
+  mask.innerHTML = `<div class="modal${cls ? " " + cls : ""}"><div class="mhead"><span class="mt">预览</span><span class="close" data-close="1">${ICN.close}</span></div>${html}</div>`;
   document.body.appendChild(mask);
   mask.addEventListener("click", (ev) => {
     if (ev.target === mask || ev.target.closest("[data-close]")) mask.remove();
@@ -1058,7 +1262,7 @@ function pvShell() {
       <span class="pv-nav" id="pv-nav"></span>
       <b id="pv-name" style="font-size:13px"></b>
       <span id="pv-size"></span>
-      ${state.user ? '<button class="btn mini ghost" data-share>🔗 分享</button>' : ""}
+      ${state.user ? '<button class="btn mini ghost" data-share>' + ICN.share + '分享</button>' : ""}
       <button class="btn mini" data-dl style="margin-left:auto">下载</button>
     </div>`, "pv");
   return mask;
@@ -1072,7 +1276,7 @@ function pvNavButtons(mask) {
   const next = idx >= 0 && idx < pvList.length - 1 ? pvList[idx + 1] : null;
   const nav = mask.querySelector("#pv-nav");
   if (nav) {
-    nav.innerHTML = `${prev ? '<button class="btn mini btn-nav" title="上一个">‹</button>' : ""}${next ? '<button class="btn mini btn-nav" title="下一个">›</button>' : ""}`;
+    nav.innerHTML = `${prev ? '<button class="btn mini btn-nav" title="上一个">' + ICN.chevL + '</button>' : ""}${next ? '<button class="btn mini btn-nav" title="下一个">' + ICN.chevR + '</button>' : ""}`;
     const [pb, nb] = nav.children;
     if (pb) pb.onclick = (ev) => { ev.stopPropagation(); pvNav(-1); };
     if (nb) nb.onclick = (ev) => { ev.stopPropagation(); pvNav(1); };
@@ -1212,7 +1416,7 @@ async function pvText(share, path, body, writable) {
   if (!editable) return;
   const bar = document.createElement("div");
   bar.className = "pv-edit-bar";
-  bar.innerHTML = `<button class="btn mini" id="pv-save">💾 保存 (Ctrl+S)</button><span id="pv-save-msg" class="pv-save-msg"></span>`;
+  bar.innerHTML = `<button class="btn mini" id="pv-save">${ICN.save}保存 (Ctrl+S)</button><span id="pv-save-msg" class="pv-save-msg"></span>`;
   body.insertBefore(bar, body.firstChild);
   const saveBtn = bar.querySelector("#pv-save");
   const msgEl = bar.querySelector("#pv-save-msg");
@@ -1339,7 +1543,7 @@ function renderSheetGrid(box, sheetName) {
   if (!pvSheetEditable) return;
   const bar = document.createElement("div");
   bar.className = "pv-edit-bar";
-  bar.innerHTML = `<button class="btn mini" id="pv-save">💾 保存表格</button><span id="pv-save-msg" class="pv-save-msg"></span>`;
+  bar.innerHTML = `<button class="btn mini" id="pv-save">${ICN.save}保存表格</button><span id="pv-save-msg" class="pv-save-msg"></span>`;
   box.insertBefore(bar, box.firstChild);
   const saveBtn = bar.querySelector("#pv-save");
   const msgEl = bar.querySelector("#pv-save-msg");
@@ -1374,7 +1578,7 @@ function pvMarkSaved() {
   const mask = document.querySelector(".modal.pv");
   if (!mask) return;
   const dl = mask.querySelector("[data-dl]");
-  if (dl) dl.textContent = "⬇ 已更新,重新下载";
+  if (dl) dl.innerHTML = ICN.download + "已更新,重新下载";
 }
 
 async function shareModal(shareId, path, name) {
@@ -1464,9 +1668,9 @@ function showUploadsPanel() {
     p.dataset.bound = "1";
     p.innerHTML = `
       <div class="up-head">
-        <span class="up-title">📤 上传任务 <span id="up-count" class="up-count-badge">0</span></span>
+        <span class="up-title">${ICN.upload}上传任务 <span id="up-count" class="up-count-badge">0</span></span>
         <button class="btn mini ghost" id="up-clear" title="清除已完成">清除已完成</button>
-        <button class="btn mini ghost" id="up-close" title="关闭" style="margin-left:auto">✕</button>
+        <button class="btn mini ghost" id="up-close" title="关闭" style="margin-left:auto">${ICN.close}</button>
       </div>
       <div class="up-list"></div>`;
     document.getElementById("up-close").onclick = () => p.classList.add("hidden");
@@ -1634,7 +1838,7 @@ async function openHostDirPicker(onPick, initial, opts) {
       <div id="hb-list" class="hb-list"><div class="spinner"></div></div>
       <div class="pf-actions">
         <button class="btn mini ghost" data-close="1">取消</button>
-        <button class="btn mini ghost" id="hb-up">⬆ 上一级</button>
+        <button class="btn mini ghost" id="hb-up">${ICN.up}上一级</button>
         <button class="btn" id="hb-ok">${pickFiles ? "选择此文件" : "选择此目录"}</button>
       </div>
     </div>`);
@@ -1664,8 +1868,8 @@ async function openHostDirPicker(onPick, initial, opts) {
 
   const renderDirs = (dirs, files) => {
     const rows = [];
-    dirs.forEach((d) => rows.push(`<div class="hb-dir" data-dir="${esc(d)}"><span style="color:var(--warn)">📁</span><span>${esc(d)}</span></div>`));
-    files.forEach((f) => rows.push(`<div class="hb-file" data-dir="${esc(f)}"><span style="color:var(--muted)">📄</span><span>${esc(f)}</span></div>`));
+    dirs.forEach((d) => rows.push(`<div class="hb-dir" data-dir="${esc(d)}"><span style="color:var(--warn);display:inline-flex">${ICN.folder}</span><span>${esc(d)}</span></div>`));
+    files.forEach((f) => rows.push(`<div class="hb-file" data-dir="${esc(f)}"><span style="color:var(--muted);display:inline-flex">${ICN.file}</span><span>${esc(f)}</span></div>`));
     if (!rows.length) {
       listEl.innerHTML = '<div style="padding:20px 0;color:var(--muted);text-align:center">${pickFiles ? "无子目录与证书文件" : "无子目录"}</div>';
       return;
@@ -1730,11 +1934,11 @@ function renderAdmin() {
   document.getElementById("app").innerHTML = `
   <div class="admin-wrap">
     <div class="admin-nav">
-      <div class="nav-item active" data-pane="users">👥 用户管理</div>
-      <div class="nav-item" data-pane="shares">📂 共享目录</div>
-      <div class="nav-item" data-pane="tls">🔒 HTTPS 证书</div>
-      <div class="nav-item" data-pane="account">🔑 我的密码</div>
-      <div class="nav-item" data-pane="back">← 返回文件</div>
+      <div class="nav-item active" data-pane="users">${ICN.users}用户管理</div>
+      <div class="nav-item" data-pane="shares">${ICN.folder}共享目录</div>
+      <div class="nav-item" data-pane="tls">${ICN.lock}HTTPS 证书</div>
+      <div class="nav-item" data-pane="account">${ICN.key}我的密码</div>
+      <div class="nav-item" data-pane="back">${ICN.back}返回文件</div>
     </div>
     <div class="admin-pane" id="pane"></div>
   </div>`;
@@ -1817,8 +2021,8 @@ async function adminUsers(el) {
                 .join("")}
             </td>
             <td>
-              <button class="btn mini ghost" data-reset="${u.id}">重置密码</button>
-              <button class="btn mini danger" data-del="${u.id}">删除</button>
+              <button class="btn mini ghost" data-reset="${u.id}">${ICN.key}重置密码</button>
+              <button class="btn mini danger" data-del="${u.id}">${ICN.trash}删除</button>
             </td>
           </tr>`
           )
@@ -1898,14 +2102,14 @@ async function adminTls(el) {
       <h3>当前状态</h3>
       ${
         st.enabled
-          ? `<p style="color:var(--primary-2);font-weight:600">✔ HTTPS 已启用</p>
+          ? `<p style="color:var(--primary-2);font-weight:600;display:flex;align-items:center;gap:6px">${ICN.check}HTTPS 已启用</p>
              <p>访问地址:<code>https://${esc(cert ? cert.domain : "你的域名")}${st.port ? ":" + st.port : ""}</code></p>
              <p style="color:var(--muted);font-size:13px">监听:${esc(st.tls_listen)} · 域名字段:${esc(cert ? cert.domain : "-")}</p>`
-          : `<p style="color:var(--warn)">未启用 HTTPS。添加有效证书后立即生效,可随时删除。不影响原有 HTTP 访问。</p>`
+          : `<p style="color:var(--warn);display:flex;align-items:center;gap:6px">${ICN.warn}未启用 HTTPS。添加有效证书后立即生效,可随时删除。不影响原有 HTTP 访问。</p>`
       }
       ${
         cert
-          ? `<button class="btn mini danger" id="tls-del">删除证书并停用 HTTPS</button>`
+          ? `<button class="btn mini danger" id="tls-del">${ICN.trash}删除证书并停用 HTTPS</button>`
           : ""
       }
     </div>

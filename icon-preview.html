@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>云盘图标预览</title>
+<link rel="stylesheet" href="http://127.0.0.1:9123/static/style.css">
+<style>
+  body { padding: 32px; background: var(--bg); }
+  .preview { max-width: 1100px; margin: 0 auto; }
+  .preview h1 { font-size: 22px; margin-bottom: 6px; }
+  .preview .sub { color: var(--muted); font-size: 13px; margin-bottom: 22px; }
+  .section { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px 22px; margin-bottom: 18px; box-shadow: var(--shadow-sm); }
+  .section h2 { font-size: 15px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .section h2::before { content: ""; width: 4px; height: 16px; border-radius: 3px; background: var(--grad); }
+  .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; }
+  .icon-cell { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 8px; border-radius: 10px; background: #fbfcfe; border: 1px solid var(--border-soft); }
+  .icon-cell .label { font-size: 12px; color: var(--muted); }
+  .icon-cell .ext { font-size: 11px; color: var(--text-2); background: var(--primary-soft); padding: 1px 6px; border-radius: 5px; }
+  .icon-row { display: flex; align-items: center; gap: 12px; padding: 8px 10px; background: #fbfcfe; border: 1px solid var(--border-soft); border-radius: 8px; font-size: 13px; color: var(--text-2); }
+  .icon-row .ui-ico { color: var(--primary); }
+  .ui-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .ui-cell { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; background: #fbfcfe; border: 1px solid var(--border-soft); border-radius: 8px; font-size: 13px; color: var(--text-2); }
+  .ui-cell .ui-ico { color: var(--primary); }
+  .tile-preview { width: 158px; aspect-ratio: 1 / 1; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); position: relative; overflow: hidden; box-shadow: var(--shadow-sm); }
+  .tile-preview .thumb { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(120% 120% at 20% 10%, #eef2ff 0%, #e6ebfa 60%, #dde4f7 100%); }
+  .tile-preview .thumb .fico { width: 92px; height: 92px; filter: drop-shadow(0 6px 10px rgba(24,32,64,.16)); }
+  .tile-preview .tname { position: absolute; left: 0; right: 0; bottom: 0; padding: 26px 10px 7px; font-size: 12.5px; color: #fff; text-align: center; background: linear-gradient(to top, rgba(12,16,32,.82), rgba(12,16,32,.35) 55%, transparent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tiles-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 14px; }
+  .toolbar-preview { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 18px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; box-shadow: var(--shadow-sm); }
+</style>
+</head>
+<body>
+<div id="app" style="display:none"></div>
+<div class="preview">
+  <h1>云盘图标改造预览</h1>
+  <div class="sub">文件夹 + 文件类型图标统一重设计,UI 图标线性化,统一视觉风格。</div>
+
+  <div class="section">
+    <h2>文件夹图标(网格 / 列表 共用)</h2>
+    <div class="icon-grid">
+      <div class="icon-cell"><div style="width:92px;height:92px;display:flex;align-items:center;justify-content:center" id="folder-lg"></div><span class="label">文件夹</span></div>
+      <div class="icon-cell"><div style="width:21px;height:21px;display:flex;align-items:center;justify-content:center" id="folder-sm"></div><span class="label">列表视图</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>文件类型图标(网格视图 92px)</h2>
+    <div class="tiles-row" id="tiles-grid"></div>
+  </div>
+
+  <div class="section">
+    <h2>文件类型图标(列表视图 21px)</h2>
+    <div class="icon-grid" id="list-grid"></div>
+  </div>
+
+  <div class="section">
+    <h2>通用 UI 图标(线性,继承 currentColor)</h2>
+    <div class="ui-grid" id="ui-grid"></div>
+  </div>
+
+  <div class="section">
+    <h2>工具栏 / 操作按钮预览</h2>
+    <div class="toolbar-preview" id="toolbar-preview"></div>
+  </div>
+</div>
+
+<script src="http://127.0.0.1:9123/static/app.js"></script>
+<script>
+// 重新执行图标定义(app.js 顶层已定义,但页面没有 #app,需要手动渲染)
+const tileTypes = [
+  { name: "项目文档.pdf", is_dir: false, ext: "pdf", kind: "doc", size: 2480000, mtime: 1717000000 },
+  { name: "周报.docx", is_dir: false, ext: "docx", kind: "doc", size: 86000, mtime: 1717000000 },
+  { name: "财务表.xlsx", is_dir: false, ext: "xlsx", kind: "doc", size: 142000, mtime: 1717000000 },
+  { name: "演示稿.pptx", is_dir: false, ext: "pptx", kind: "doc", size: 3200000, mtime: 1717000000 },
+  { name: "风景照.jpg", is_dir: false, ext: "jpg", kind: "image", size: 1800000, mtime: 1717000000 },
+  { name: " Clip.mp4", is_dir: false, ext: "mp4", kind: "video", size: 24000000, mtime: 1717000000 },
+  { name: "BGM.mp3", is_dir: false, ext: "mp3", kind: "audio", size: 4800000, mtime: 1717000000 },
+  { name: "归档.zip", is_dir: false, ext: "zip", kind: "archive", size: 98000000, mtime: 1717000000 },
+  { name: "说明.txt", is_dir: false, ext: "txt", kind: "doc", size: 4200, mtime: 1717000000 },
+  { name: "README.md", is_dir: false, ext: "md", kind: "doc", size: 8800, mtime: 1717000000 },
+  { name: "config.json", is_dir: false, ext: "json", kind: "doc", size: 2300, mtime: 1717000000 },
+  { name: "values.yaml", is_dir: false, ext: "yaml", kind: "doc", size: 1800, mtime: 1717000000 },
+  { name: "deploy.sh", is_dir: false, ext: "sh", kind: "doc", size: 1200, mtime: 1717000000 },
+  { name: "main.py", is_dir: false, ext: "py", kind: "doc", size: 5400, mtime: 1717000000 },
+  { name: "app.js", is_dir: false, ext: "js", kind: "doc", size: 88000, mtime: 1717000000 },
+  { name: "index.ts", is_dir: false, ext: "ts", kind: "doc", size: 4200, mtime: 1717000000 },
+  { name: "page.html", is_dir: false, ext: "html", kind: "doc", size: 12000, mtime: 1717000000 },
+  { name: "style.css", is_dir: false, ext: "css", kind: "doc", size: 6800, mtime: 1717000000 },
+  { name: "data.xml", is_dir: false, ext: "xml", kind: "doc", size: 3400, mtime: 1717000000 },
+  { name: "schema.sql", is_dir: false, ext: "sql", kind: "doc", size: 9200, mtime: 1717000000 },
+  { name: "archive.tiff", is_dir: false, ext: "tiff", kind: "image", size: 5400000, mtime: 1717000000 },
+  { name: "movie.mkv", is_dir: false, ext: "mkv", kind: "video", size: 88000000, mtime: 1717000000 },
+  { name: "podcast.flac", is_dir: false, ext: "flac", kind: "audio", size: 28000000, mtime: 1717000000 },
+  { name: "backup.7z", is_dir: false, ext: "7z", kind: "archive", size: 120000000, mtime: 1717000000 },
+  { name: "notes.markdown", is_dir: false, ext: "markdown", kind: "doc", size: 5400, mtime: 1717000000 },
+  { name: "unknown.xyz", is_dir: false, ext: "xyz", kind: "doc", size: 1200, mtime: 1717000000 },
+];
+
+// 渲染文件夹大图
+document.getElementById("folder-lg").innerHTML = FICO_FOLDER;
+document.getElementById("folder-sm").innerHTML = FICO_FOLDER;
+
+// 渲染文件类型网格预览
+const tilesGrid = document.getElementById("tiles-grid");
+tilesGrid.innerHTML = tileTypes.map((x) => {
+  const kc = kindOf(x);
+  return `<div class="tile-preview">
+    <div class="thumb"><span style="filter:drop-shadow(0 6px 10px rgba(24,32,64,.14))">${fileIco(x)}</span></div>
+    <div class="tname" title="${esc(x.name)}">${esc(x.name)}</div>
+  </div>`;
+}).join("");
+
+// 渲染列表视图小图标
+const listGrid = document.getElementById("list-grid");
+listGrid.innerHTML = tileTypes.map((x) =>
+  `<div class="icon-cell"><div style="width:21px;height:21px;display:flex;align-items:center;justify-content:center">${fileIco(x)}</div><span class="ext">.${x.ext}</span></div>`
+).join("");
+
+// 渲染 UI 图标网格
+const uiIcons = [
+  ["folder", "文件夹"], ["folderOpen", "打开文件夹"], ["file", "文件"], ["image", "图片"],
+  ["video", "视频"], ["audio", "音频"], ["archive", "压缩包"], ["search", "搜索"],
+  ["upload", "上传"], ["download", "下载"], ["share", "分享"], ["link", "链接"],
+  ["copy", "复制"], ["edit", "重命名"], ["trash", "删除"], ["refresh", "刷新"],
+  ["plus", "新建"], ["lock", "权限"], ["unlock", "解锁"], ["key", "密码"],
+  ["user", "用户"], ["users", "用户组"], ["gear", "设置"], ["home", "主页"],
+  ["grid", "网格视图"], ["list", "列表视图"], ["save", "保存"], ["close", "关闭"],
+  ["back", "返回"], ["up", "上一级"], ["chevL", "左"], ["chevR", "右"],
+  ["chevUp", "上"], ["chevDn", "下"], ["check", "成功"], ["info", "信息"],
+  ["warn", "警告"], ["shield", "安全"], ["database", "数据库"], ["cert", "证书"],
+  ["logout", "退出"], ["login", "登录"],
+];
+document.getElementById("ui-grid").innerHTML = uiIcons.map(([k, label]) =>
+  `<div class="ui-cell">${ICN[k] || "?"}<span>${label}</span></div>`
+).join("");
+
+// 渲染工具栏按钮预览
+document.getElementById("toolbar-preview").innerHTML = `
+  <button class="btn mini ghost">${ICN.grid}</button>
+  <button class="btn mini ghost active">${ICN.list}</button>
+  <button class="btn ghost mini">${ICN.plus}新建文件夹</button>
+  <button class="btn btn-upload">${ICN.upload}上传文件</button>
+  <button class="btn mini ghost">${ICN.lock}权限</button>
+  <button class="btn mini ghost" title="刷新">${ICN.refresh}</button>
+  <button class="btn mini">${ICN.folderOpen}打开</button>
+  <button class="btn mini">${ICN.download}下载</button>
+  <button class="btn mini ghost">${ICN.share}分享</button>
+  <button class="btn mini ghost">${ICN.edit}重命名</button>
+  <button class="btn mini danger">${ICN.trash}删除</button>
+  <button class="btn mini ghost">${ICN.logout}退出</button>
+`;
+</script>
+</body>
+</html>

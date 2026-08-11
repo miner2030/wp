@@ -6,7 +6,20 @@
 <meta name="description" content="多用户网盘:断点续传 · 在线播放 · 安全分享">
 <title>云盘 · 多用户网盘</title>
 <link rel="stylesheet" href="/static/style.css">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%234e6ef2'/%3E%3Cstop offset='1' stop-color='%23927bff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cpath d='M9 20.5c-1.1 0-2-.9-2-2 0-1 .7-1.8 1.6-2-.4-3.5 2.4-6.5 5.9-6.5 2.3 0 4.3 1.3 5.2 3.2.5-.1 1-.2 1.5-.2 2.5 0 4.6 2 4.6 4.5S23.7 20.5 21 21v0h-12z' fill='white'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%234e6ef2'/%3E%3Cstop offset='1' stop-color='%23927bff'/%3E/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cpath d='M9 20.5c-1.1 0-2-.9-2-2 0-1 .7-1.8 1.6-2-.4-3.5 2.4-6.5 5.9-6.5 2.3 0 4.3 1.3 5.2 3.2.5-.1 1-.2 1.5-.2 2.5 0 4.6 2 4.6 4.5S23.7 20.5 21 21v0h-12z' fill='white'/%3E%3C/svg%3E">
+<script>
+// 在样式应用前同步设置主题,避免闪烁 (FOUC)
+(function () {
+  try {
+    var pref = localStorage.getItem("wp_theme") || "auto";
+    var sysDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    var actual = pref === "auto" ? (sysDark ? "dark" : "light") : pref;
+    document.documentElement.setAttribute("data-theme", actual);
+  } catch (e) {
+    document.documentElement.setAttribute("data-theme", "light");
+  }
+})();
+</script>
 </head>
 <body>
 <div id="app"></div>
