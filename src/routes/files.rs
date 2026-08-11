@@ -7,7 +7,7 @@ use axum::Json;
 use serde_json::json;
 
 use crate::auth::Session;
-use crate::authz::{can_mutate, can_read, check_download, check_mutate, check_read};
+use crate::authz::{access_of, can_mutate, can_read, check_download, check_mutate, check_read, private, Access};
 use crate::error::{err_json, ok_json, ApiError, ApiResult};
 use crate::fsops::{collect_dir, locate, remove_dir_all_count, resolve};
 use crate::mime;
@@ -253,7 +253,8 @@ pub async fn api_dlticket(State(st): State<AppState>, session: Session, Json(req
         if !r.full.is_file() {
             return Err(ApiError::not_found("文件不存在"));
         }
-        crate::ticket::file_url(&st, r.share.id, &r.rel)
+        let guest_ok = !private(&r.share) && access_of(&rules, &r.rel) == Access::Guest;
+        crate::ticket::file_url(&st, r.share.id, &r.rel, !guest_ok)
     } else {
         let located = locate(&st, req.share_id, &req.path).await?;
         let rules = st.db.rules(located.share.id).await?;
@@ -267,12 +268,22 @@ pub async fn api_dlticket(State(st): State<AppState>, session: Session, Json(req
     Ok(ok_json(json!({ "url": url, "expires_in": crate::ticket::TICKET_TTL })))
 }
 
-/// 签名下载(匿名可用):URL 末段为真实文件名,curl/wget 直接保存为正确文件名。
-pub async fn api_dl_get(State(st): State<AppState>, headers: HeaderMap, AxPath((share_id, _name)): AxPath<(i64, String)>, Query(q): Query<DlQ>) -> Response {
-    if let Err(e) = crate::ticket::verify(&st, "file", share_id, &q.path, q.exp, &q.sig) {
-        return e.into_response();
+/// 下载响应管线:有签名 -> 验签放行;无签名 -> 按当前会话执行规则授权(guest 目录游客可下)。
+async fn serve_dl(st: &AppState, headers: HeaderMap, session: Session, share_id: i64, rel: &str, exp: i64, sig: &str) -> Response {
+    if !sig.is_empty() {
+        if let Err(e) = crate::ticket::verify(st, "file", share_id, rel, exp, sig) {
+            return e.into_response();
+        }
+    } else {
+        let (r0, rules, _) = match resolve(st, share_id, rel).await {
+            Ok(v) => v,
+            Err(e) => return e.into_response(),
+        };
+        if let Err(e) = check_download(&session, &r0.share, &rules, &r0.rel) {
+            return e.into_response();
+        }
     }
-    let (r, _, _) = match resolve(&st, share_id, &q.path).await {
+    let (r, _, _) = match resolve(st, share_id, rel).await {
         Ok(v) => v,
         Err(e) => return e.into_response(),
     };
@@ -282,6 +293,23 @@ pub async fn api_dl_get(State(st): State<AppState>, headers: HeaderMap, AxPath((
     let mime = mime::mime_of(&crate::path::ext_of(&r.rel));
     let range = headers.get(header::RANGE).and_then(|v| v.to_str().ok()).map(|s| s.to_string());
     crate::stream::stream(&r.full, range.as_deref(), &mime, false, true).await
+}
+
+/// 签名下载(匿名可用):URL 末段为真实文件名,curl/wget 直接保存为正确文件名。
+pub async fn api_dl_get(State(st): State<AppState>, headers: HeaderMap, session: Session, AxPath((share_id, _name)): AxPath<(i64, String)>, Query(q): Query<DlQ>) -> Response {
+    serve_dl(&st, headers, session, share_id, &q.path, q.exp, &q.sig).await
+}
+
+/// 短路径下载端点 /dl/:share_id/...:guest 可见文件无签名(短链接),私有文件带 exp/sig 签名。
+pub async fn api_dl_short(State(st): State<AppState>, headers: HeaderMap, session: Session, AxPath(rest): AxPath<String>, Query(q): Query<DlQ>) -> Response {
+    let mut it = rest.splitn(2, '/');
+    let share_id: i64 = match it.next().and_then(|s| s.parse().ok()) {
+        Some(v) => v,
+        None => return err_json(StatusCode::NOT_FOUND, "共享不存在"),
+    };
+    let rel_raw = it.next().unwrap_or("");
+    let rel = percent_encoding::percent_decode_str(rel_raw).decode_utf8_lossy();
+    serve_dl(&st, headers, session, share_id, &rel, q.exp, &q.sig).await
 }
 
 async fn zip_response(st: &AppState, session: &Session, authorized: bool, share_id: i64, path: &str, names: &Vec<String>) -> ApiResult<Response> {

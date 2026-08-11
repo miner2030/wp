@@ -25,6 +25,7 @@ pub fn build(state: AppState) -> Router {
         .route("/api/shares/:id/rules/:rid", axum::routing::delete(r::admin::api_rule_delete))
         .route("/api/browse-host", get(r::admin::api_host_browse))
         .route("/api/dl/:share_id/:name", get(r::files::api_dl_get))
+        .route("/dl/*path", get(r::files::api_dl_short))
         // ---- 文件操作 ----
         .route("/api/browse/:share_id", get(r::files::api_browse))
         .route("/api/file/meta/:share_id", get(r::files::api_file_meta))

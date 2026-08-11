@@ -59,15 +59,25 @@ pub fn verify(st: &AppState, kind: &str, share_id: i64, rel: &str, exp: i64, sig
     Ok(())
 }
 
+/// 相对路径转 URL 路径段:按 "/" 分段各自百分号编码,保证 URL 以真实文件名结尾且中文/空格可读。
+fn rel_segments(rel: &str) -> String {
+    rel.split('/')
+        .filter(|s| !s.is_empty())
+        .map(|s| crate::stream::urlencode(s))
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
 /// 给单个路径签发完整下载 URL(以真实文件名结尾,便于 curl/wget 直接保存)。
-pub fn file_url(st: &AppState, share_id: i64, rel: &str) -> String {
+/// `signed=true` 时追加 exp/sig 签名(私有文件匿名下载);guest 可见文件用纯短链接 `signed=false`。
+pub fn file_url(st: &AppState, share_id: i64, rel: &str, signed: bool) -> String {
+    let seg = rel_segments(rel);
+    if !signed {
+        return format!("/dl/{share_id}/{seg}");
+    }
     let exp = crate::now() + TICKET_TTL;
-    let name = rel.rsplit('/').next().unwrap_or(rel);
     let sig = sign(st, "file", share_id, rel, exp);
-    format!(
-        "/api/dl/{share_id}/{name}?path={}&exp={exp}&sig={sig}",
-        crate::stream::urlencode(rel)
-    )
+    format!("/dl/{share_id}/{seg}?exp={exp}&sig={sig}")
 }
 
 /// 给批量 zip 下载签发完整 URL。
