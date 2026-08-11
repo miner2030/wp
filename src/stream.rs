@@ -4,14 +4,21 @@ use std::path::Path;
 use axum::body::Body;
 use axum::http::{header, StatusCode};
 use axum::response::Response;
-use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio_util::io::ReaderStream;
 
 use crate::error::err_json;
 
+/// URL 编码集合:保留 RFC 3986 unreserved 字符(A-Za-z0-9 - _ . ~),中文/空格等正常编码。
+const URL_SAFE: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'.')
+    .remove(b'-')
+    .remove(b'_')
+    .remove(b'~');
+
 pub fn urlencode(s: &str) -> String {
-    utf8_percent_encode(s, NON_ALPHANUMERIC).to_string()
+    utf8_percent_encode(s, URL_SAFE).to_string()
 }
 
 pub fn disposition(inline: bool, name: &str) -> String {
